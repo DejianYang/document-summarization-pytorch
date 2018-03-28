@@ -119,6 +119,11 @@ class TopKDecoder(torch.nn.Module):
         # Initialize the input vector
         input_var = Variable(torch.transpose(torch.LongTensor([[self.SOS] * batch_size * self.k]), 0, 1))
 
+        if torch.cuda.is_available():
+            input_var = input_var.cuda()
+            sequence_scores = sequence_scores.cuda()
+            self.pos_index = self.pos_index.cuda()
+
         # Store decisions for backtracking
         stored_outputs = list()
         stored_scores = list()
@@ -128,6 +133,7 @@ class TopKDecoder(torch.nn.Module):
 
         for _ in range(0, max_length):
 
+            # print(_, input_var)
             # Run the RNN one step forward
             log_softmax_output, hidden, _ = self.rnn.forward_step(input_var, hidden,
                                                                   inflated_encoder_outputs, function=function)
@@ -227,8 +233,12 @@ class TopKDecoder(torch.nn.Module):
         if lstm:
             state_size = nw_hidden[0][0].size()
             h_n = tuple([torch.zeros(state_size), torch.zeros(state_size)])
+            if torch.cuda.is_available():
+                h_n = tuple([h_n[0].cuda(), h_n[1].cuda()])
         else:
             h_n = torch.zeros(nw_hidden[0].size())
+            if torch.cuda.is_available():
+                h_n = h_n.cuda()
         l = [[self.rnn.max_length] * self.k for _ in range(b)]  # Placeholder for lengths of top-k sequences
         # Similar to `h_n`
 
