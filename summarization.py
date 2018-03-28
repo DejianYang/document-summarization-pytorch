@@ -57,6 +57,8 @@ valid_set = torchtext.data.TabularDataset(
     fields=[('src', src), ('tgt', tgt)],
     filter_pred=len_filter
 )
+print('training samples', len(train_set.examples))
+print('valid samples', len(valid_set.examples))
 
 src.build_vocab(train_set, max_size=30000)
 tgt.build_vocab(train_set, max_size=30000)
@@ -67,7 +69,7 @@ weight = torch.ones(len(tgt.vocab))
 pad = tgt.vocab.stoi[tgt.pad_token]
 loss = Perplexity(weight, pad)
 
-print(torch.cuda.is_available())
+print('use cuda', torch.cuda.is_available())
 if torch.cuda.is_available():
     loss.cuda()
 
@@ -84,7 +86,7 @@ else:
     optimizer = None
     if not opt.resume:
         # Initialize model
-        hidden_size = 128
+        hidden_size = 256
         bidirectional = True
         encoder = EncoderRNN(len(src.vocab), src_max_len, hidden_size,
                              bidirectional=bidirectional,
@@ -111,7 +113,7 @@ else:
                                 checkpoint_every=1000,
                                 print_every=100, expt_dir=opt.expt_dir)
     model = trainer.train(seq2seq, train_set,
-                          num_epochs=3, dev_data=valid_set,
+                          num_epochs=15, dev_data=valid_set,
                           optimizer=optimizer,
                           teacher_forcing_ratio=0.9,
                           resume=opt.resume)

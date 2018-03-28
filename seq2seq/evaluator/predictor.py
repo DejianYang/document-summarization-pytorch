@@ -49,7 +49,7 @@ class Predictor(object):
         with open(tgt_output_file, 'w', encoding='utf-8') as fw:
             for i, src_inp_seq in enumerate(src_lines):
                 tgt_pred_seq = self.predict(src_inp_seq)
-                fw.write(' '.join(tgt_pred_seq))
+                fw.write(' '.join(tgt_pred_seq)+'\n')
                 if (i+1) % 100 == 0:
                     print('...predict %d lines' % (i+1))
         print('predict over!')

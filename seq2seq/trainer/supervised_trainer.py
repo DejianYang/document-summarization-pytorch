@@ -29,7 +29,7 @@ class SupervisedTrainer(object):
 
     def __init__(self, expt_dir='experiment', loss=NLLLoss(), batch_size=64,
                  random_seed=None,
-                 checkpoint_every=100, print_every=100):
+                 checkpoint_every=1000, print_every=100):
         self._trainer = "Simple Trainer"
         self.random_seed = random_seed
         if random_seed is not None:
