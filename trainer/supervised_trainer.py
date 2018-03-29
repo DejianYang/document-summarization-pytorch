@@ -122,10 +122,11 @@ class SupervisedTrainer(object):
                     Checkpoint(model=model,
                                optimizer=self.optimizer,
                                epoch=epoch, step=step,
-                               input_vocab=data.fields[seq2seq.src_field_name].vocab,
-                               output_vocab=data.fields[seq2seq.tgt_field_name].vocab).save(self.expt_dir)
+                               input_vocab=data.fields[SEQ2SEQ_SOURCE_FILED_NAME].vocab,
+                               output_vocab=data.fields[SEQ2SEQ_TARGET_FILED_NAME].vocab).save(self.expt_dir)
 
-            if step_elapsed == 0: continue
+            if step_elapsed == 0:
+                continue
 
             epoch_loss_avg = epoch_loss_total / min(steps_per_epoch, step - start_step)
             epoch_loss_total = 0
