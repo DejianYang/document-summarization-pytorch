@@ -116,7 +116,7 @@ class DecoderRNN(BaseRNN):
                                                              function, teacher_forcing_ratio)
         decoder_hidden = self._init_state(encoder_hidden)
 
-        use_teacher_forcing = True if random.random() < teacher_forcing_ratio else False
+        use_teacher_forcing = True  # if random.random() < teacher_forcing_ratio else False
 
         decoder_outputs = []
         sequence_symbols = []

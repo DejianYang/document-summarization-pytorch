@@ -113,7 +113,7 @@ else:
                                 checkpoint_every=1000,
                                 print_every=100, expt_dir=opt.expt_dir)
     model = trainer.train(seq2seq, train_set,
-                          num_epochs=15, dev_data=valid_set,
+                          num_epochs=10, dev_data=valid_set,
                           optimizer=optimizer,
                           teacher_forcing_ratio=0.9,
                           resume=opt.resume)
@@ -123,5 +123,4 @@ dev_loss, accuracy = evaluator.evaluate(seq2seq, valid_set)
 
 beam_search = Seq2seq(seq2seq.encoder, TopKDecoder(seq2seq.decoder, 5))
 predictor = Predictor(beam_search, input_vocab, output_vocab)
-
 predictor.predict_file('./data/valid.art', './data/valid.pred.sum')

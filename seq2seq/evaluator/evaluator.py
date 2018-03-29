@@ -54,10 +54,10 @@ class Evaluator(object):
             seqlist = other['sequence']
             for step, step_output in enumerate(decoder_outputs):
                 target = target_variables[:, step + 1]
-                loss.eval_batch(step_output.view(target_variables.size(0), -1), target)
+                loss.eval_batch(step_output.contiguous().view(target_variables.size(0), -1), target)
 
                 non_padding = target.ne(pad)
-                correct = seqlist[step].view(-1).eq(target).masked_select(non_padding).sum().data[0]
+                correct = seqlist[step].contiguous().view(-1).eq(target).masked_select(non_padding).sum().data[0]
                 match += correct
                 total += non_padding.sum().data[0]
 
