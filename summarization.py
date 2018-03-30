@@ -12,7 +12,7 @@ from utils.checkpoint import Checkpoint
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--train_path', action='store', dest='train_path',
-                    default='./data/valid.tsv', help='Path to train data')
+                    default='./data/train.tsv', help='Path to train data')
 parser.add_argument('--dev_path', action='store', dest='dev_path',
                     default='./data/valid.tsv', help='Path to dev data')
 parser.add_argument('--expt_dir', action='store', dest='expt_dir', default='./data/summarization/',
@@ -110,7 +110,7 @@ else:
                                 checkpoint_every=1000,
                                 print_every=100, expt_dir=opt.expt_dir)
     trainer.train(seq2seq, train_set,
-                  num_epochs=5, dev_data=valid_set,
+                  num_epochs=15, dev_data=valid_set,
                   optimizer=optimizer,
                   teacher_forcing_ratio=0.5,
                   resume=opt.resume)

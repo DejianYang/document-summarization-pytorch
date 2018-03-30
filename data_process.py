@@ -9,7 +9,7 @@ def merge_into_tsv_file(src_file, tgt_file, saved_file):
         for src_line, tgt_line in zip(src_lines, tgt_lines):
             src_line = src_line.replace('\t', ',')
             tgt_line = tgt_line.replace('\t', ',')
-            fw.write('%s\t%s\n'%(src_line, tgt_line))
+            fw.write('%s\t%s\n' % (src_line, tgt_line))
 
 
 if __name__ == '__main__':
