@@ -2,10 +2,8 @@ from __future__ import print_function, division
 
 import torch
 import torchtext
-
-import seq2seq
-from seq2seq.loss import NLLLoss
-
+from models import NLLLoss
+from utils.fields import *
 
 class Evaluator(object):
     """ Class to evaluate models with given datasets.
@@ -41,12 +39,12 @@ class Evaluator(object):
             dataset=data, batch_size=self.batch_size,
             sort=True, sort_key=lambda x: len(x.src),
             device=device, train=False)
-        tgt_vocab = data.fields[seq2seq.tgt_field_name].vocab
-        pad = tgt_vocab.stoi[data.fields[seq2seq.tgt_field_name].pad_token]
+        tgt_vocab = data.fields[SEQ2SEQ_TARGET_FILED_NAME].vocab
+        pad = tgt_vocab.stoi[data.fields[SEQ2SEQ_TARGET_FILED_NAME].pad_token]
 
         for batch in batch_iterator:
-            input_variables, input_lengths = getattr(batch, seq2seq.src_field_name)
-            target_variables = getattr(batch, seq2seq.tgt_field_name)
+            input_variables, input_lengths = getattr(batch, SEQ2SEQ_SOURCE_FILED_NAME)
+            target_variables = getattr(batch, SEQ2SEQ_TARGET_FILED_NAME)
 
             decoder_outputs, decoder_hidden, other = model(input_variables, input_lengths.tolist(), target_variables)
 

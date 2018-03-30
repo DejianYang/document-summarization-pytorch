@@ -3,16 +3,12 @@ import argparse
 import logging
 
 import torch
-from torch.optim.lr_scheduler import StepLR
 import torchtext
 
-from seq2seq.trainer import SupervisedTrainer
-from seq2seq.models import EncoderRNN, DecoderRNN, TopKDecoder, Seq2seq
-from seq2seq.loss import Perplexity
-from seq2seq.optim import Optimizer
-from seq2seq.dataset import SourceField, TargetField
-from seq2seq.evaluator import Predictor, Evaluator
-from seq2seq.util.checkpoint import Checkpoint
+from trainer import SupervisedTrainer, Evaluator, Predictor
+from models import EncoderRNN, DecoderRNN, TopKDecoder, Seq2Seq, Perplexity, Optimizer
+from utils.fields import *
+from utils.checkpoint import Checkpoint
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--train_path', action='store', dest='train_path',
@@ -40,7 +36,8 @@ def len_filter(example):
     return len(example.src) <= src_max_len and len(example.tgt) <= src_max_len
 
 
-LOG_FORMAT = '%(asctime)s %(name)-12s %(levelname)-8s %(message)s'
+LOG_FORMAT = '%(asctime)s %(levelname)s %(message)s'
+log_file = os.path.join(opt.expt_dir, 'log.txt')
 logging.basicConfig(format=LOG_FORMAT, level=getattr(logging, opt.log_level.upper()))
 logging.info(opt)
 
@@ -49,12 +46,12 @@ src = SourceField()
 tgt = TargetField()
 train_set = torchtext.data.TabularDataset(
     path=opt.train_path, format='tsv',
-    fields=[('src', src), ('tgt', tgt)],
+    fields=[(SEQ2SEQ_SOURCE_FILED_NAME, src), (SEQ2SEQ_TARGET_FILED_NAME, tgt)],
     filter_pred=len_filter
 )
 valid_set = torchtext.data.TabularDataset(
     path=opt.dev_path, format='tsv',
-    fields=[('src', src), ('tgt', tgt)],
+    fields=[(SEQ2SEQ_SOURCE_FILED_NAME, src), (SEQ2SEQ_TARGET_FILED_NAME, tgt)],
     filter_pred=len_filter
 )
 print('training samples', len(train_set.examples))
@@ -97,7 +94,7 @@ else:
                              bidirectional=bidirectional,
                              rnn_cell='lstm',
                              eos_id=tgt.eos_id, sos_id=tgt.sos_id)
-        seq2seq = Seq2seq(encoder, decoder)
+        seq2seq = Seq2Seq(encoder, decoder)
         if torch.cuda.is_available():
             seq2seq.cuda()
 
@@ -112,15 +109,15 @@ else:
     trainer = SupervisedTrainer(loss=loss, batch_size=32,
                                 checkpoint_every=1000,
                                 print_every=100, expt_dir=opt.expt_dir)
-    model = trainer.train(seq2seq, train_set,
-                          num_epochs=10, dev_data=valid_set,
-                          optimizer=optimizer,
-                          teacher_forcing_ratio=0.9,
-                          resume=opt.resume)
+    trainer.train(seq2seq, train_set,
+                  num_epochs=15, dev_data=valid_set,
+                  optimizer=optimizer,
+                  teacher_forcing_ratio=0.5,
+                  resume=opt.resume)
 
 evaluator = Evaluator(loss=loss, batch_size=32)
 dev_loss, accuracy = evaluator.evaluate(seq2seq, valid_set)
 
-beam_search = Seq2seq(seq2seq.encoder, TopKDecoder(seq2seq.decoder, 5))
+beam_search = Seq2Seq(seq2seq.encoder, TopKDecoder(seq2seq.decoder, 5))
 predictor = Predictor(beam_search, input_vocab, output_vocab)
-predictor.predict_file('./data/valid.art', './data/valid.pred.sum')
+predictor.predict_file('./data/valid.art', opt.expt_dir + '/valid.pred.sum')

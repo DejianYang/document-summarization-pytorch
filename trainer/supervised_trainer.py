@@ -8,11 +8,10 @@ import torch
 import torchtext
 from torch import optim
 
-import seq2seq
-from seq2seq.evaluator import Evaluator
-from seq2seq.loss import NLLLoss
-from seq2seq.optim import Optimizer
-from seq2seq.util.checkpoint import Checkpoint
+from trainer.evaluator import Evaluator
+from models import NLLLoss, Optimizer
+from utils.checkpoint import Checkpoint
+from utils.fields import *
 
 
 class SupervisedTrainer(object):
@@ -99,8 +98,8 @@ class SupervisedTrainer(object):
                 step += 1
                 step_elapsed += 1
 
-                input_variables, input_lengths = getattr(batch, seq2seq.src_field_name)
-                target_variables = getattr(batch, seq2seq.tgt_field_name)
+                input_variables, input_lengths = getattr(batch, SEQ2SEQ_SOURCE_FILED_NAME)
+                target_variables = getattr(batch, SEQ2SEQ_TARGET_FILED_NAME)
 
                 loss = self._train_batch(input_variables, input_lengths.tolist(), target_variables, model,
                                          teacher_forcing_ratio)
@@ -123,10 +122,11 @@ class SupervisedTrainer(object):
                     Checkpoint(model=model,
                                optimizer=self.optimizer,
                                epoch=epoch, step=step,
-                               input_vocab=data.fields[seq2seq.src_field_name].vocab,
-                               output_vocab=data.fields[seq2seq.tgt_field_name].vocab).save(self.expt_dir)
+                               input_vocab=data.fields[SEQ2SEQ_SOURCE_FILED_NAME].vocab,
+                               output_vocab=data.fields[SEQ2SEQ_TARGET_FILED_NAME].vocab).save(self.expt_dir)
 
-            if step_elapsed == 0: continue
+            if step_elapsed == 0:
+                continue
 
             epoch_loss_avg = epoch_loss_total / min(steps_per_epoch, step - start_step)
             epoch_loss_total = 0

@@ -1,4 +1,6 @@
+torch
 numpy
 dill
 tqdm
 torchtext
+pyrouge

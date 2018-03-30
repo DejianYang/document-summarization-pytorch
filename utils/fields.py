@@ -1,6 +1,9 @@
 import logging
-
 import torchtext
+
+
+SEQ2SEQ_SOURCE_FILED_NAME = 'src'
+SEQ2SEQ_TARGET_FILED_NAME = 'tgt'
 
 
 class SourceField(torchtext.data.Field):

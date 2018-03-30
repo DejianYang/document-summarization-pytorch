@@ -1,4 +1,6 @@
 from .EncoderRNN import EncoderRNN
 from .DecoderRNN import DecoderRNN
 from .TopKDecoder import TopKDecoder
-from .seq2seq import Seq2seq
+from .Seq2Seq import Seq2Seq
+from .loss import NLLLoss, Perplexity
+from .optim import Optimizer
