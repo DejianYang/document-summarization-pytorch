@@ -12,6 +12,10 @@ from trainer.evaluator import Evaluator
 from models import NLLLoss, Optimizer
 from utils.checkpoint import Checkpoint
 from utils.fields import *
+from utils.dataset import PointerTextDataset
+
+src_field_name = PointerTextDataset.SRC_FILED
+tgt_filed_name = PointerTextDataset.TGT_FIELD
 
 
 class SupervisedTrainer(object):
@@ -98,8 +102,8 @@ class SupervisedTrainer(object):
                 step += 1
                 step_elapsed += 1
 
-                input_variables, input_lengths = getattr(batch, SEQ2SEQ_SOURCE_FILED_NAME)
-                target_variables = getattr(batch, SEQ2SEQ_TARGET_FILED_NAME)
+                input_variables, input_lengths = getattr(batch, src_field_name)
+                target_variables = getattr(batch, tgt_filed_name)
 
                 loss = self._train_batch(input_variables, input_lengths.tolist(), target_variables, model,
                                          teacher_forcing_ratio)

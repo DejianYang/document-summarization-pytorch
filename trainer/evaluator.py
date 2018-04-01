@@ -5,6 +5,7 @@ import torchtext
 from models import NLLLoss
 from utils.fields import *
 
+
 class Evaluator(object):
     """ Class to evaluate models with given datasets.
 

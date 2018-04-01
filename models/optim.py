@@ -27,6 +27,7 @@ class Optimizer(object):
             scheduler (torch.optim.lr_scheduler.*): object of learning rate scheduler,
                e.g. torch.optim.lr_scheduler.StepLR
         """
+        torch.optim.lr_scheduler.StepLR
         self.scheduler = scheduler
 
     def step(self):

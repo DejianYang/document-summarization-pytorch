@@ -89,6 +89,7 @@ class DecoderRNN(BaseRNN):
             self.attention = Attention(self.hidden_size)
 
         self.out = nn.Linear(self.hidden_size, self.output_size)
+        self.linear_in = nn.Linear(self.hidden_size*2, self.hidden_size)
 
     def forward_step(self, input_var, hidden, encoder_outputs, func):
         batch_size = input_var.size(0)
@@ -96,7 +97,11 @@ class DecoderRNN(BaseRNN):
         embedded = self.embedding(input_var)
         embedded = self.input_dropout(embedded)
 
-        output, hidden = self.rnn(embedded, hidden)
+        if isinstance(hidden, tuple):
+            rnn_inp = self.linear_in(torch.cat((hidden[0][0].squeeze(1), embedded), dim=2))
+        else:
+            rnn_inp = self.linear_in(torch.cat((hidden[0].squeeze(1), embedded), dim=2))
+        output, (h, c) = self.rnn(rnn_inp, hidden)
 
         attn = None
         if self.use_attention:
@@ -104,7 +109,7 @@ class DecoderRNN(BaseRNN):
 
         predicted_softmax = func(self.out(output.contiguous().view(-1, self.hidden_size))).view(batch_size,
                                                                                                 output_size, -1)
-        return predicted_softmax, hidden, attn
+        return predicted_softmax, (output[:, -1, :].unsqueeze(0), c), attn
 
     def forward(self, inputs=None, encoder_hidden=None, encoder_outputs=None,
                 func=F.log_softmax, teacher_forcing_ratio=0):
@@ -113,10 +118,10 @@ class DecoderRNN(BaseRNN):
             ret_dict[DecoderRNN.KEY_ATTN_SCORE] = list()
 
         inputs, batch_size, max_length = self._validate_args(inputs, encoder_hidden, encoder_outputs,
-                                                             func, teacher_forcing_ratio)
+                                                             teacher_forcing_ratio)
         decoder_hidden = self._init_state(encoder_hidden)
 
-        use_teacher_forcing = True if random.random() < teacher_forcing_ratio else False
+        use_teacher_forcing = True  # if random.random() < teacher_forcing_ratio else False
 
         decoder_outputs = []
         sequence_symbols = []
@@ -139,17 +144,26 @@ class DecoderRNN(BaseRNN):
         # Manual unrolling is used to support random teacher forcing.
         # If teacher_forcing_ratio is True or False instead of a probability, the unrolling can be done in graph
         if use_teacher_forcing:
-            decoder_input = inputs[:, :-1]
-            decoder_output, decoder_hidden, attn = self.forward_step(decoder_input, decoder_hidden, encoder_outputs,
-                                                                     func=func)
-
-            for di in range(decoder_output.size(1)):
-                step_output = decoder_output[:, di, :]
-                if attn is not None:
-                    step_attn = attn[:, di, :]
-                else:
-                    step_attn = None
+            decoder_input = inputs[:, 0].unsqueeze(1)
+            for di in range(max_length):
+                decoder_output, decoder_hidden, step_attn = self.forward_step(decoder_input, decoder_hidden,
+                                                                              encoder_outputs,
+                                                                              func=func)
+                step_output = decoder_output.squeeze(1)
                 decode(di, step_output, step_attn)
+                decoder_input = inputs[:, di+1].unsqueeze(1)
+
+            # decoder_input = inputs[:, :-1]
+            # decoder_output, decoder_hidden, attn = self.forward_step(decoder_input, decoder_hidden, encoder_outputs,
+            #                                                          func=func)
+            #
+            # for di in range(decoder_output.size(1)):
+            #     step_output = decoder_output[:, di, :]
+            #     if attn is not None:
+            #         step_attn = attn[:, di, :]
+            #     else:
+            #         step_attn = None
+            #     decode(di, step_output, step_attn)
         else:
             decoder_input = inputs[:, 0].unsqueeze(1)
             for di in range(max_length):
@@ -183,7 +197,7 @@ class DecoderRNN(BaseRNN):
             h = torch.cat([h[0:h.size(0):2], h[1:h.size(0):2]], 2)
         return h
 
-    def _validate_args(self, inputs, encoder_hidden, encoder_outputs, func, teacher_forcing_ratio):
+    def _validate_args(self, inputs, encoder_hidden, encoder_outputs, teacher_forcing_ratio):
         if self.use_attention:
             if encoder_outputs is None:
                 raise ValueError("Argument encoder_outputs cannot be None when attention is used.")

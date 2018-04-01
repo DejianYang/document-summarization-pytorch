@@ -50,6 +50,6 @@ class Seq2Seq(nn.Module):
         result = self.decoder(inputs=target_variable,
                               encoder_hidden=encoder_hidden,
                               encoder_outputs=encoder_outputs,
-                              func=self.decode_function,
+                              #encoder_lengths=input_lengths,
                               teacher_forcing_ratio=teacher_forcing_ratio)
         return result

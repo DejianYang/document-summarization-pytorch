@@ -3,6 +3,21 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+def _sequence_mask(lengths, max_len=None):
+    """
+    Creates a boolean mask from sequence lengths.
+    """
+    lengths = torch.LongTensor(lengths)
+    if torch.cuda.is_available():
+        lengths = lengths.cuda()
+    batch_size = lengths.numel()
+    max_len = max_len or lengths.max()
+    return 1 - (torch.arange(0, max_len)
+                .type_as(lengths)
+                .repeat(batch_size, 1)
+                .lt(lengths.unsqueeze(1)))
+
+
 class Attention(nn.Module):
     r"""
     Applies an attention mechanism on the output features from the decoder.
@@ -31,15 +46,16 @@ class Attention(nn.Module):
 
     Examples::
 
-         >>> attention = seq2seq.models.Attention(256)
+         >>> attention = models.Attention(256)
          >>> context = Variable(torch.randn(5, 3, 256))
          >>> output = Variable(torch.randn(5, 5, 256))
          >>> output, attn = attention(output, context)
 
     """
+
     def __init__(self, dim):
         super(Attention, self).__init__()
-        self.linear_out = nn.Linear(dim*2, dim)
+        self.linear_out = nn.Linear(dim * 2, dim)
         self.mask = None
 
     def set_mask(self, mask):
@@ -70,3 +86,30 @@ class Attention(nn.Module):
         output = F.tanh(self.linear_out(combined.view(-1, 2 * hidden_size))).view(batch_size, -1, hidden_size)
 
         return output, attn
+
+
+class BahdanauAttention(nn.Module):
+    def __init__(self, dim):
+        super(BahdanauAttention, self).__init__()
+        self.dim = dim
+        # self.linear_out = nn.Linear(dim * 2, dim)
+
+    def forward(self, hidden, memory, memory_length=None):
+        seq_length = memory.size(1)
+        # (batch*1*dim)*(batch*dim*seq_l) -> batch*1*seq_l = batch*seq_l
+        attn = torch.bmm(hidden.unsqueeze(1), memory.transpose(1, 2)).squeeze(1)
+
+        if memory_length is not None:
+            mask = _sequence_mask(memory_length, seq_length)
+            attn.data.masked_fill_(mask, -float('inf'))
+
+        # batch * seq_l
+        attn = F.softmax(attn, dim=1)
+        # (batch, 1, seq_l) * (batch, seq_l, dim) -> (batch, 1, dim) -> (batch, dim)
+        context = torch.bmm(attn.unsqueeze(1), memory).squeeze(1)
+
+        # # concat -> (batch, out_len, 2*dim)
+        # cont = torch.cat((mix, hidden), dim=1)
+        # # output -> (batch, out_len, dim)
+        # attn_output = F.tanh(self.linear_out(combined))
+        return context, attn

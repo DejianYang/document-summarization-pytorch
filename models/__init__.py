@@ -4,3 +4,4 @@ from .TopKDecoder import TopKDecoder
 from .Seq2Seq import Seq2Seq
 from .loss import NLLLoss, Perplexity
 from .optim import Optimizer
+from .CopyDecoder import CopyDecoder
