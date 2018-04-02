@@ -1,6 +1,8 @@
+jieba
 torch
 numpy
 dill
 tqdm
 torchtext
 pyrouge
+jieba

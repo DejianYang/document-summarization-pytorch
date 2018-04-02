@@ -12,6 +12,10 @@ from trainer.evaluator import Evaluator
 from models import NLLLoss, Optimizer
 from utils.checkpoint import Checkpoint
 from utils.fields import *
+from utils.dataset import PointerTextDataset
+
+src_field_name = PointerTextDataset.SRC_FILED
+tgt_filed_name = PointerTextDataset.TGT_FIELD
 
 
 class SupervisedTrainer(object):
@@ -66,7 +70,7 @@ class SupervisedTrainer(object):
 
         return loss.get_loss()
 
-    def _train_epoches(self, data, model, n_epochs, start_epoch, start_step,
+    def _train_epoches(self, train_data, model, n_epochs, start_epoch, start_step,
                        dev_data=None, teacher_forcing_ratio=0):
         log = self.logger
 
@@ -75,7 +79,7 @@ class SupervisedTrainer(object):
 
         device = None if torch.cuda.is_available() else -1
         batch_iterator = torchtext.data.BucketIterator(
-            dataset=data, batch_size=self.batch_size,
+            dataset=train_data.data, batch_size=self.batch_size,
             sort=False, sort_within_batch=True,
             sort_key=lambda x: len(x.src),
             device=device, repeat=False)
@@ -98,8 +102,8 @@ class SupervisedTrainer(object):
                 step += 1
                 step_elapsed += 1
 
-                input_variables, input_lengths = getattr(batch, SEQ2SEQ_SOURCE_FILED_NAME)
-                target_variables = getattr(batch, SEQ2SEQ_TARGET_FILED_NAME)
+                input_variables, input_lengths = getattr(batch, src_field_name)
+                target_variables = getattr(batch, tgt_filed_name)
 
                 loss = self._train_batch(input_variables, input_lengths.tolist(), target_variables, model,
                                          teacher_forcing_ratio)
@@ -122,8 +126,8 @@ class SupervisedTrainer(object):
                     Checkpoint(model=model,
                                optimizer=self.optimizer,
                                epoch=epoch, step=step,
-                               input_vocab=data.fields[SEQ2SEQ_SOURCE_FILED_NAME].vocab,
-                               output_vocab=data.fields[SEQ2SEQ_TARGET_FILED_NAME].vocab).save(self.expt_dir)
+                               input_vocab=train_data.fields[SEQ2SEQ_SOURCE_FILED_NAME].vocab,
+                               output_vocab=train_data.fields[SEQ2SEQ_TARGET_FILED_NAME].vocab).save(self.expt_dir)
 
             if step_elapsed == 0:
                 continue

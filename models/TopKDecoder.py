@@ -75,26 +75,26 @@ class TopKDecoder(torch.nn.Module):
 
     def __init__(self, decoder_rnn, k):
         super(TopKDecoder, self).__init__()
-        self.rnn = decoder_rnn
+        self.decoder = decoder_rnn
         self.k = k
-        self.hidden_size = self.rnn.hidden_size
-        self.V = self.rnn.output_size
-        self.SOS = self.rnn.sos_id
-        self.EOS = self.rnn.eos_id
+        self.hidden_size = self.decoder.hidden_size
+        self.V = self.decoder.output_size
+        self.SOS = self.decoder.sos_id
+        self.EOS = self.decoder.eos_id
 
-    def forward(self, inputs=None, encoder_hidden=None, encoder_outputs=None, func=F.log_softmax,
+    def forward(self, inputs=None, encoder_hidden=None, encoder_outputs=None, encoder_lengths=None,
                 teacher_forcing_ratio=0, retain_output_probs=True):
         """
         Forward rnn for MAX_LENGTH steps.  Look at :func:`seq2seq.models.DecoderRNN.DecoderRNN.forward_rnn` for details.
         """
 
-        inputs, batch_size, max_length = self.rnn._validate_args(inputs, encoder_hidden, encoder_outputs,
-                                                                 func, teacher_forcing_ratio)
+        inputs, batch_size, max_length = self.decoder._validate_args(inputs, encoder_hidden, encoder_outputs,
+                                                                     teacher_forcing_ratio)
 
         self.pos_index = Variable(torch.LongTensor(range(batch_size)) * self.k).view(-1, 1)
 
         # Inflate the initial hidden states to be of size: b*k x h
-        encoder_hidden = self.rnn._init_state(encoder_hidden)
+        encoder_hidden = self.decoder._init_state(encoder_hidden)
         if encoder_hidden is None:
             hidden = None
         else:
@@ -104,7 +104,7 @@ class TopKDecoder(torch.nn.Module):
                 hidden = _inflate(encoder_hidden, self.k, 1)
 
         # ... same idea for encoder_outputs and decoder_outputs
-        if self.rnn.use_attention:
+        if self.decoder.use_attention:
             inflated_encoder_outputs = _inflate(encoder_outputs, self.k, 0)
         else:
             inflated_encoder_outputs = None
@@ -135,9 +135,10 @@ class TopKDecoder(torch.nn.Module):
 
             # print(_, input_var)
             # Run the RNN one step forward
-            log_softmax_output, hidden, _ = self.rnn.forward_step(input_var, hidden,
-                                                                  inflated_encoder_outputs,
-                                                                  func=func)
+            input_var = input_var.squeeze(1)
+            log_softmax_output, hidden, _ = self.decoder.forward_step(input_var, hidden,
+                                                                      inflated_encoder_outputs,
+                                                                      encoder_lengths)
 
             # If doing local backprop (e.g. supervised training), retain the output layer
             if retain_output_probs:
@@ -240,7 +241,7 @@ class TopKDecoder(torch.nn.Module):
             h_n = torch.zeros(nw_hidden[0].size())
             if torch.cuda.is_available():
                 h_n = h_n.cuda()
-        l = [[self.rnn.max_length] * self.k for _ in range(b)]  # Placeholder for lengths of top-k sequences
+        l = [[self.decoder.max_length] * self.k for _ in range(b)]  # Placeholder for lengths of top-k sequences
         # Similar to `h_n`
 
         # the last step output of the beams are not sorted
@@ -252,7 +253,7 @@ class TopKDecoder(torch.nn.Module):
         batch_eos_found = [0] * b  # the number of EOS found
         # in the backward loop below for each batch
 
-        t = self.rnn.max_length - 1
+        t = self.decoder.max_length - 1
         # initialize the back pointer with the sorted order of the last step beams.
         # add self.pos_index for indexing variable with b*k as the first dimension.
         t_predecessors = (sorted_idx + self.pos_index.expand_as(sorted_idx)).view(b * self.k)

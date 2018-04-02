@@ -82,8 +82,8 @@ class Vocabulary(object):
         """Write entries to a file."""
         with open(filename, 'w', encoding='utf-8') as file:
             sorted_freq_items = sorted(self.frequencies.items(), key=lambda d: d[1], reverse=True)
-            for word, freq in sorted_freq_items:
-                # word = self.idx2word[i]
+            for idx, freq in sorted_freq_items:
+                word = self.idx2word[idx]
                 # idx = self.word2idx[word]
                 # freq = self.frequencies[word] if word in self.frequencies else -1
                 file.write('%s\t%d\n' % (word, freq))

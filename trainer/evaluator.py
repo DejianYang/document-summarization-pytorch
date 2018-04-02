@@ -4,6 +4,8 @@ import torch
 import torchtext
 from models import NLLLoss
 from utils.fields import *
+from utils.dataset import *
+
 
 class Evaluator(object):
     """ Class to evaluate models with given datasets.
@@ -36,15 +38,15 @@ class Evaluator(object):
 
         device = None if torch.cuda.is_available() else -1
         batch_iterator = torchtext.data.BucketIterator(
-            dataset=data, batch_size=self.batch_size,
+            dataset=data.data, batch_size=self.batch_size,
             sort=True, sort_key=lambda x: len(x.src),
             device=device, train=False)
-        tgt_vocab = data.fields[SEQ2SEQ_TARGET_FILED_NAME].vocab
-        pad = tgt_vocab.stoi[data.fields[SEQ2SEQ_TARGET_FILED_NAME].pad_token]
+        tgt_vocab = data.vocab
+        pad = tgt_vocab.pad_idx
 
         for batch in batch_iterator:
-            input_variables, input_lengths = getattr(batch, SEQ2SEQ_SOURCE_FILED_NAME)
-            target_variables = getattr(batch, SEQ2SEQ_TARGET_FILED_NAME)
+            input_variables, input_lengths = getattr(batch, SRC_FILED)
+            target_variables = getattr(batch, TGT_FIELD)
 
             decoder_outputs, decoder_hidden, other = model(input_variables, input_lengths.tolist(), target_variables)
 

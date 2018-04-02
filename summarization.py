@@ -6,7 +6,7 @@ import torch
 import torchtext
 
 from trainer import SupervisedTrainer, Evaluator, Predictor
-from models import EncoderRNN, DecoderRNN, TopKDecoder, Seq2Seq, Perplexity, Optimizer
+from models import EncoderRNN, DecoderRNN, CopyDecoder, TopKDecoder, Seq2Seq, Perplexity, Optimizer
 from utils.fields import *
 from utils.checkpoint import Checkpoint
 
@@ -15,13 +15,13 @@ parser.add_argument('--train_path', action='store', dest='train_path',
                     default='./data/train.tsv', help='Path to train data')
 parser.add_argument('--dev_path', action='store', dest='dev_path',
                     default='./data/valid.tsv', help='Path to dev data')
-parser.add_argument('--expt_dir', action='store', dest='expt_dir', default='./data/summarization/',
+parser.add_argument('--expt_dir', action='store', dest='expt_dir', default='./data/sum_v0401New/',
                     help='Path to experiment directory. If load_checkpoint is True, '
                          'then path to checkpoint directory has to be provided')
 parser.add_argument('--load_checkpoint', action='store', dest='load_checkpoint',
                     help='The name of the checkpoint to load, usually an encoded time string')
 parser.add_argument('--resume', action='store_true', dest='resume',
-                    default=False,
+                    default=True,
                     help='Indicates if training has to be resumed from the latest checkpoint')
 parser.add_argument('--log-level', dest='log_level',
                     default='info', help='Logging level.')
@@ -38,7 +38,14 @@ def len_filter(example):
 
 LOG_FORMAT = '%(asctime)s %(levelname)s %(message)s'
 log_file = os.path.join(opt.expt_dir, 'log.txt')
-logging.basicConfig(format=LOG_FORMAT, level=getattr(logging, opt.log_level.upper()))
+logging.basicConfig(format=LOG_FORMAT, level=getattr(logging, opt.log_level.upper()),
+                    filename=log_file, filemode='w')
+
+console = logging.StreamHandler()
+console.setLevel(logging.INFO)
+formatter = logging.Formatter(LOG_FORMAT)
+console.setFormatter(formatter)
+logging.getLogger('').addHandler(console)
 logging.info(opt)
 
 # Prepare dataset
@@ -57,8 +64,8 @@ valid_set = torchtext.data.TabularDataset(
 print('training samples', len(train_set.examples))
 print('valid samples', len(valid_set.examples))
 
-src.build_vocab(train_set, max_size=30000)
-tgt.build_vocab(train_set, max_size=30000)
+src.build_vocab(train_set, max_size=50000)
+tgt.build_vocab(train_set, max_size=50000)
 input_vocab = src.vocab
 output_vocab = tgt.vocab
 # Prepare loss
@@ -89,11 +96,11 @@ else:
                              bidirectional=bidirectional,
                              rnn_cell='lstm',
                              variable_lengths=True)
-        decoder = DecoderRNN(len(tgt.vocab), tgt_max_len, hidden_size * 2,
-                             dropout_p=0.2, use_attention=True,
-                             bidirectional=bidirectional,
-                             rnn_cell='lstm',
-                             eos_id=tgt.eos_id, sos_id=tgt.sos_id)
+        decoder = CopyDecoder(len(tgt.vocab), tgt_max_len, hidden_size * 2,
+                              dropout_p=0.2, use_attention=True,
+                              bidirectional=bidirectional,
+                              rnn_cell='lstm',
+                              eos_id=tgt.eos_id, sos_id=tgt.sos_id)
         seq2seq = Seq2Seq(encoder, decoder)
         if torch.cuda.is_available():
             seq2seq.cuda()
@@ -102,22 +109,22 @@ else:
             param.data.uniform_(-0.08, 0.08)
 
         optimizer = Optimizer(torch.optim.Adam(seq2seq.parameters()), max_grad_norm=5)
-        # scheduler = StepLR(optimizer.optimizer, 1)
-        # optimizer.set_scheduler(scheduler)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer.optimizer, 1000, 0.9)
+        optimizer.set_scheduler(scheduler)
 
     # train
     trainer = SupervisedTrainer(loss=loss, batch_size=32,
                                 checkpoint_every=1000,
                                 print_every=100, expt_dir=opt.expt_dir)
-    trainer.train(seq2seq, train_set,
-                  num_epochs=15, dev_data=valid_set,
-                  optimizer=optimizer,
-                  teacher_forcing_ratio=0.5,
-                  resume=opt.resume)
+    seq2seq = trainer.train(seq2seq, train_set,
+                            num_epochs=8, dev_data=valid_set,
+                            optimizer=optimizer,
+                            teacher_forcing_ratio=0.5,
+                            resume=opt.resume)
 
 evaluator = Evaluator(loss=loss, batch_size=32)
 dev_loss, accuracy = evaluator.evaluate(seq2seq, valid_set)
 
 beam_search = Seq2Seq(seq2seq.encoder, TopKDecoder(seq2seq.decoder, 5))
 predictor = Predictor(beam_search, input_vocab, output_vocab)
-predictor.predict_file('./data/valid.art', opt.expt_dir + '/valid.pred.sum')
+predictor.predict_file('./data/valid.art', opt.expt_dir + '/valid.pred.e8.sum')

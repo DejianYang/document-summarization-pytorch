@@ -1,4 +1,5 @@
 """ A base class for RNN. """
+import torch
 import torch.nn as nn
 
 
@@ -35,6 +36,7 @@ class BaseRNN(nn.Module):
         self.n_layers = n_layers
         self.input_dropout_p = input_dropout_p
         self.input_dropout = nn.Dropout(p=input_dropout_p)
+        self.rnn_type = rnn_cell
         if rnn_cell.lower() == 'lstm':
             self.rnn_cell = nn.LSTM
         elif rnn_cell.lower() == 'gru':
@@ -46,3 +48,9 @@ class BaseRNN(nn.Module):
 
     def forward(self, *args, **kwargs):
         raise NotImplementedError()
+
+    @staticmethod
+    def to_cuda(tensor):
+        if torch.cuda.is_available():
+            return tensor.cuda()
+        return tensor
