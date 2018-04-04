@@ -5,10 +5,10 @@ import logging
 import torchtext
 from .vocab import *
 
-SRC_FILED = 'src'
-SRC_OOV_FIELD = 'src_oov'
-TGT_FIELD = 'tgt'
-TGT_OOV_FIELD = 'tgt_oov'
+SRC_FILED_NAME = 'src'
+SRC_OOV_FIELD_NAME = 'src_oov'
+TGT_FIELD_NAME = 'tgt'
+TGT_OOV_FIELD_NAME = 'tgt_oov'
 
 
 class SourceField(torchtext.data.Field):
@@ -52,16 +52,16 @@ class PointerTextDataset(object):
 
         self._data_set = torchtext.data.TabularDataset(
             path=csv_path, format='tsv',
-            fields=[(self.source_field, src_field),
-                    (self.source_oov_field, src_field),
-                    (self.target_field, tgt_field),
-                    (self.target_oov_field, tgt_field)],
+            fields=[(SRC_FILED_NAME, src_field),
+                    (SRC_OOV_FIELD_NAME, src_field),
+                    (TGT_FIELD_NAME, tgt_field),
+                    (TGT_OOV_FIELD_NAME, tgt_field)],
             filter_pred=self._len_filter)
         pass
 
     def _len_filter(self, example):
-        src = getattr(example, self.source_field)
-        tgt = getattr(example, self.target_field)
+        src = getattr(example, SRC_FILED_NAME)
+        tgt = getattr(example, TGT_FIELD_NAME)
         return len(src) <= self.src_max_len and len(tgt) <= self.tgt_max_len
 
     @property

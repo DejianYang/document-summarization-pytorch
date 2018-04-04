@@ -45,8 +45,8 @@ class Evaluator(object):
         pad = tgt_vocab.pad_idx
 
         for batch in batch_iterator:
-            input_variables, input_lengths = getattr(batch, SRC_FILED)
-            target_variables = getattr(batch, TGT_FIELD)
+            input_variables, input_lengths = getattr(batch, SRC_FILED_NAME)
+            target_variables = getattr(batch, TGT_FIELD_NAME)
 
             decoder_outputs, decoder_hidden, other = model(input_variables, input_lengths.tolist(), target_variables)
 

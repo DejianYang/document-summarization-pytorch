@@ -18,7 +18,7 @@ class CopyDecoder(BaseRNN):
     KEY_LENGTH = 'length'
     KEY_SEQUENCE = 'sequence'
 
-    def __init__(self, vocab_size, max_len, hidden_size,
+    def __init__(self, vocab_size, oov_size, max_len, hidden_size,
                  sos_id, eos_id,
                  n_layers=1, rnn_cell='gru', bidirectional=False,
                  input_dropout_p=0, dropout_p=0, use_attention=True):
@@ -27,6 +27,9 @@ class CopyDecoder(BaseRNN):
         super(CopyDecoder, self).__init__(vocab_size, max_len, hidden_size,
                                           input_dropout_p, dropout_p,
                                           n_layers, rnn_cell)
+
+        self.vocab_size = vocab_size
+        self.oov_size = oov_size
 
         self.bidirectional_encoder = bidirectional
         self.rnn = self.rnn_cell(hidden_size, hidden_size, n_layers, batch_first=True, dropout=dropout_p)
@@ -45,7 +48,8 @@ class CopyDecoder(BaseRNN):
 
         self.linear_in = nn.Linear(hidden_size * 2, hidden_size, bias=False)
         self.linear_out = nn.Linear(hidden_size * 2, hidden_size, bias=False)
-        self.output_project = nn.Linear(hidden_size, self.output_size)
+        self.gen_output_project = nn.Linear(hidden_size * 2, self.vocab_size)
+        self.gen_prob_project = nn.Linear(3 * hidden_size, 1)
 
         pass
 
@@ -59,21 +63,32 @@ class CopyDecoder(BaseRNN):
             encoder_hidden = self._cat_directions(encoder_hidden)
         return encoder_hidden
 
+    def _copy_step(self, input_oov_idx, emb_inp, context, h_titled, attn_dist):
+        batch_size = input_oov_idx.size(0)
+        seq_length = input_oov_idx.size(1)
+
+        init_copy_logits = Variable(input_oov_idx.data.new(batch_size, self.oov_size).zero_())
+
+        gen_logits = self.gen_output_project(torch.cat((h_titled, context), dim=1))
+        gen_logits = F.softmax(gen_logits, dim=1)
+
+        gen_probs = F.sigmoid(self.gen_prob_project(torch.cat((emb_inp, context, h_titled), dim=1)))
+        gen_output_logits = gen_probs * gen_logits
+        copy_output_logits = (1.0 - gen_probs) * attn_dist
+
+        final_output_logits = torch.cat((gen_output_logits, init_copy_logits), dim=1)
+
+        for idx in range(seq_length):
+            batch_idx = input_oov_idx[idx, :]
+        
+        pass
+
     def forward_step(self, input_var, hidden, memory, memory_length):
         embedded = self.embedding(input_var)
         embedded = self.input_dropout(embedded)
 
-        if self.rnn_type == 'gru':
-            rnn_inp = self.linear_in(torch.cat([hidden[0], embedded], dim=1))
-            _, h = self.rnn(rnn_inp.unsqueeze(1), hidden)
-            h = h.squeeze(0)
-            ctx, attn_dist = self.attention(h, memory, memory_length)
-            h_titled = self.linear_out(torch.cat((ctx, h), dim=1))
-
-            logits = F.log_softmax(self.output_project(h_titled), dim=1)
-            return logits, h_titled.unsqueeze(0), attn_dist
-
-        elif self.rnn_type == 'lstm':
+        # lstm cell
+        if isinstance(hidden, tuple):
             rnn_inp = self.linear_in(torch.cat([hidden[0][0], embedded], dim=1))
             _, (h, c) = self.rnn(rnn_inp.unsqueeze(1), hidden)
             h = h.squeeze(0)
@@ -81,10 +96,18 @@ class CopyDecoder(BaseRNN):
 
             h_titled = self.linear_out(torch.cat((ctx, h), dim=1))
 
-            logits = F.log_softmax(self.output_project(h_titled), dim=1)
+            logits = F.log_softmax(self.gen_output_project(h_titled), dim=1)
             return logits, (h_titled.unsqueeze(0), c), attn_dist
+
         else:
-            raise NotImplementedError
+            rnn_inp = self.linear_in(torch.cat([hidden[0], embedded], dim=1))
+            _, h = self.rnn(rnn_inp.unsqueeze(1), hidden)
+            h = h.squeeze(0)
+            ctx, attn_dist = self.attention(h, memory, memory_length)
+            h_titled = self.linear_out(torch.cat((ctx, h), dim=1))
+
+            logits = F.log_softmax(self.gen_output_project(h_titled), dim=1)
+            return logits, h_titled.unsqueeze(0), attn_dist
 
     def forward(self, inputs, encoder_hidden, encoder_outputs, encoder_lengths, teacher_forcing_ratio=1.0):
         input_vars, batch_size, max_length = self._validate_args(inputs,

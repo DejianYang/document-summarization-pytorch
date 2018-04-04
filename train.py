@@ -2,7 +2,8 @@
 import torch
 import json
 import argparse
-from models import Perplexity, Optimizer, EncoderRNN, CopyDecoder, Seq2Seq
+import logging
+from models import Perplexity, Optimizer, EncoderRNN, CopyDecoder, TopKDecoder, Seq2Seq
 from utils.dataset import *
 from trainer import SupervisedTrainer, Evaluator, Predictor
 
@@ -38,36 +39,51 @@ def train(args):
     if torch.cuda.is_available():
         loss.cuda()
 
-    hidden_size = config['hidden_size']
-    bidirectional = config['bidirectional']
-    encoder = EncoderRNN(len(vocab), config['src_max_len'], hidden_size,
-                         bidirectional=bidirectional,
-                         rnn_cell=config['rnn_cell'],
-                         variable_lengths=True)
-    decoder = CopyDecoder(len(vocab), config['tgt_max_len'], hidden_size * 2,
-                          dropout_p=config['dropout_prob'], use_attention=True,
-                          bidirectional=bidirectional,
-                          rnn_cell=config['rnn_cell'],
-                          eos_id=vocab.eos_idx, sos_id=vocab.sos_idx)
-    seq2seq = Seq2Seq(encoder, decoder)
-    print(seq2seq)
-    if torch.cuda.is_available():
-        seq2seq.cuda()
+    seq2seq = None
+    optimizer = None
 
-    for param in seq2seq.parameters():
-        param.data.uniform_(-config['init_w'], config['init_w'])
+    if not args.resume:
+        hidden_size = config['hidden_size']
+        bidirectional = config['bidirectional']
+        encoder = EncoderRNN(len(vocab), config['src_max_len'], hidden_size,
+                             bidirectional=bidirectional,
+                             rnn_cell=config['rnn_cell'],
+                             variable_lengths=True)
+        decoder = CopyDecoder(len(vocab), config['tgt_max_len'], hidden_size * 2,
+                              dropout_p=config['dropout_prob'], use_attention=True,
+                              bidirectional=bidirectional,
+                              rnn_cell=config['rnn_cell'],
+                              eos_id=vocab.eos_idx, sos_id=vocab.sos_idx)
+        seq2seq = Seq2Seq(encoder, decoder)
+        print(seq2seq)
 
-    optimizer = Optimizer(torch.optim.Adam(seq2seq.parameters()), max_grad_norm=config['max_grad_norm'])
+        if torch.cuda.is_available():
+            seq2seq.cuda()
+
+        for param in seq2seq.parameters():
+            param.data.uniform_(-config['init_w'], config['init_w'])
+
+        optimizer = Optimizer(torch.optim.Adam(seq2seq.parameters()), max_grad_norm=config['max_grad_norm'])
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer.optimizer, 1000, 0.9)
+        optimizer.set_scheduler(scheduler)
 
     # train
     trainer = SupervisedTrainer(loss=loss, batch_size=config['batch_size'],
                                 checkpoint_every=config['checkpoint_every'],
                                 print_every=config['display_every'], expt_dir=config['log_dir'])
-    trainer.train(seq2seq, train_set,
-                  num_epochs=config['num_epochs'], dev_data=valid_set,
-                  optimizer=optimizer,
-                  teacher_forcing_ratio=config['teacher_forcing_ratio'],
-                  resume=None)
+    seq2seq = trainer.train(seq2seq, train_set,
+                            num_epochs=config['num_epochs'], dev_data=valid_set,
+                            optimizer=optimizer,
+                            teacher_forcing_ratio=config['teacher_forcing_ratio'],
+                            resume=args.resume)
+
+    evaluator = Evaluator(loss=loss, batch_size=32)
+    dev_loss, accuracy = evaluator.evaluate(seq2seq, valid_set)
+    logging.info("Dev Loss: %f; Dev Accuracy: %f" % (dev_loss, accuracy))
+
+    beam_search = Seq2Seq(seq2seq.encoder, TopKDecoder(seq2seq.decoder, config['beam_size']))
+    predictor = Predictor(beam_search, vocab, vocab)
+    predictor.predict_file('./data/valid.art', config['log_dir'] + '/valid.pred.e%d.sum' % config['num_epochs'])
 
     pass
 
@@ -80,6 +96,8 @@ def parse_args():
 
     # data
     parser.add_argument("--config", type=str, default="./configs/sum.json", help="config path")
+    parser.add_argument('--resume', action='store_true', dest='resume', default=False,
+                        help='Indicates if training has to be resumed from the latest checkpoint')
 
     return parser.parse_args()
 

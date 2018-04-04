@@ -31,7 +31,7 @@ class Predictor(object):
             tgt_seq (list): list of tokens in target language as predicted
             by the pre-trained model
         """
-        src_id_seq = Variable(torch.LongTensor([self.src_vocab.stoi[tok] for tok in src_seq]),
+        src_id_seq = Variable(torch.LongTensor(self.src_vocab.convert2idx(src_seq)),
                               volatile=True).view(1, -1)
         if torch.cuda.is_available():
             src_id_seq = src_id_seq.cuda()
@@ -40,7 +40,7 @@ class Predictor(object):
         length = other['length'][0]
 
         tgt_id_seq = [other['sequence'][di][0].data[0] for di in range(length)]
-        tgt_seq = [self.tgt_vocab.itos[tok] for tok in tgt_id_seq]
+        tgt_seq = self.tgt_vocab.convert2words(tgt_id_seq)
         return tgt_seq
 
     def predict_file(self, src_input_file, tgt_output_file):

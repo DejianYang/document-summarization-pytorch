@@ -19,7 +19,7 @@
 
   "batch_size":32,
   "teacher_forcing_ratio":0.5,
-  "num_epochs":15,
+  "num_epochs":5,
   "display_every":100,
   "checkpoint_every":1000
 }
