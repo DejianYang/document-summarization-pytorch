@@ -74,14 +74,15 @@ class CopyDecoder(BaseRNN):
 
         gen_probs = F.sigmoid(self.gen_prob_project(torch.cat((emb_inp, context, h_titled), dim=1)))
         gen_output_logits = gen_probs * gen_logits
-        copy_output_logits = (1.0 - gen_probs) * attn_dist
 
-        final_output_logits = torch.cat((gen_output_logits, init_copy_logits), dim=1)
+        final_logits = torch.cat((gen_output_logits, init_copy_logits), dim=1)
 
         for idx in range(seq_length):
             batch_idx = input_oov_idx[idx, :]
-        
-        pass
+            final_logits[:, batch_idx] = final_logits[:, batch_idx] + (1.0 - gen_probs) * attn_dist[:, idx]
+
+        log_final_logits = torch.log(final_logits)
+        return log_final_logits
 
     def forward_step(self, input_var, hidden, memory, memory_length):
         embedded = self.embedding(input_var)
