@@ -113,3 +113,48 @@ class BahdanauAttention(nn.Module):
         # # output -> (batch, out_len, dim)
         # attn_output = F.tanh(self.linear_out(combined))
         return context, attn
+
+
+class BahdanauCopyAttention(nn.Module):
+    def __init__(self, dim):
+        super(BahdanauCopyAttention, self).__init__()
+        self.dim = dim
+
+        self.linear_wh = nn.Linear(dim, dim, bias=False)
+        self.linear_wm = nn.Linear(dim, dim, bias=False)
+        self.linear_wc = nn.Linear(dim, dim, bias=False)
+        self.v = nn.Linear(dim, 1, bias=False)
+
+    def forward(self, query, memory, coverage, memory_length=None):
+        """
+         Bahdanau Attention with coverage
+        :param query: target sequence hidden states, [batch_size, tgt_length, dim]
+        :param memory: source sequence hidden states, [batch_size, src_length, dim]
+        :param coverage: coverage vector of attention, [batch_size, dim]
+        :param memory_length: source sequence lengths, [batch]
+        :return: context vector and attention distributions
+        """
+        assert query.dim() == 2
+        assert memory.dim() == 3
+        assert coverage.dim() == 2
+        assert coverage is not None
+        tgt_batch, tgt_dim = query.size()
+        src_batch, src_len, src_dim = memory.size()
+
+        assert tgt_batch == src_batch
+        assert tgt_dim == src_dim
+
+        wh = self.linear_wh(query).unsqueeze(1).expand(src_batch, src_len, src_dim)
+        wm = self.linear_wm(memory.contiguous().view(-1, src_dim)).view(src_batch, src_len, src_dim)
+        wc = self.linear_wc(coverage).unsqueeze(1).expand(src_batch, src_len, src_dim)
+
+        attn = self.v(F.tanh(wh+wm+wc).view(-1, src_dim)).view(src_batch, src_len)
+
+        # apply mask
+        if memory_length is not None:
+            mask = _sequence_mask(memory_length, src_len)
+            attn.data.masked_fill_(mask, -float('inf'))
+        # attention distributions
+        attn = F.softmax(attn, dim=1)
+        context = torch.bmm(attn.unsqueeze(1), memory).squeeze(1)
+        return context, attn
