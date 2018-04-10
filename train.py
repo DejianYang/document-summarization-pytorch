@@ -5,7 +5,7 @@ import argparse
 import logging
 from models import Perplexity, Optimizer, EncoderRNN, CopyDecoder, TopKDecoder, Seq2Seq
 from utils.dataset import *
-from trainer import SupervisedTrainer, Evaluator, Predictor
+from trainer import SupervisedTrainer2, Evaluator, Predictor
 
 LOG_FORMAT = '%(asctime)s %(levelname)s %(message)s'
 logging.basicConfig(format=LOG_FORMAT, level=logging.INFO)
@@ -33,7 +33,7 @@ def train(args):
     logging.info('building loss')
 
     # Prepare loss
-    weight = torch.ones(len(vocab))
+    weight = torch.ones(len(vocab)+vocab.oov_size)
     loss = Perplexity(weight, vocab.pad_idx)
 
     if torch.cuda.is_available():
@@ -49,11 +49,12 @@ def train(args):
                              bidirectional=bidirectional,
                              rnn_cell=config['rnn_cell'],
                              variable_lengths=True)
-        decoder = CopyDecoder(len(vocab), config['tgt_max_len'], hidden_size * 2,
+        decoder = CopyDecoder(len(vocab), vocab.oov_size,
+                              config['tgt_max_len'], hidden_size * 2,
                               dropout_p=config['dropout_prob'], use_attention=True,
                               bidirectional=bidirectional,
                               rnn_cell=config['rnn_cell'],
-                              eos_id=vocab.eos_idx, sos_id=vocab.sos_idx)
+                              eos_id=vocab.eos_idx, sos_id=vocab.sos_idx, use_pointer=True)
         seq2seq = Seq2Seq(encoder, decoder)
         print(seq2seq)
 
@@ -68,9 +69,9 @@ def train(args):
         optimizer.set_scheduler(scheduler)
 
     # train
-    trainer = SupervisedTrainer(loss=loss, batch_size=config['batch_size'],
-                                checkpoint_every=config['checkpoint_every'],
-                                print_every=config['display_every'], expt_dir=config['log_dir'])
+    trainer = SupervisedTrainer2(loss=loss, batch_size=config['batch_size'],
+                                 checkpoint_every=config['checkpoint_every'],
+                                 print_every=config['display_every'], expt_dir=config['log_dir'])
     seq2seq = trainer.train(seq2seq, train_set,
                             num_epochs=config['num_epochs'], dev_data=valid_set,
                             optimizer=optimizer,
@@ -95,7 +96,7 @@ def parse_args():
     parser = argparse.ArgumentParser('Single Document Summarization')
 
     # data
-    parser.add_argument("--config", type=str, default="./configs/sum.json", help="config path")
+    parser.add_argument("--config", type=str, default="./configs/sum.test.json", help="config path")
     parser.add_argument('--resume', action='store_true', dest='resume', default=False,
                         help='Indicates if training has to be resumed from the latest checkpoint')
 

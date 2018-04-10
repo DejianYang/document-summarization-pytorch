@@ -50,16 +50,20 @@ class SupervisedTrainer(object):
 
         self.logger = logging.getLogger(__name__)
 
-    def _train_batch(self, input_variable, input_lengths, target_variable, model, teacher_forcing_ratio):
+    def _train_batch(self, model, batch_input, teacher_forcing_ratio):
+        # Get field data
+        input_variables, input_lengths = getattr(batch_input, SRC_FILED_NAME)
+        target_variables = getattr(batch_input, TGT_FIELD_NAME)
+
         loss = self.loss
         # Forward propagation
-        decoder_outputs, decoder_hidden, other = model(input_variable, input_lengths, target_variable,
+        decoder_outputs, decoder_hidden, other = model(input_variable, input_lengths, target_variables,
                                                        teacher_forcing_ratio=teacher_forcing_ratio)
         # Get loss
         loss.reset()
         for step, step_output in enumerate(decoder_outputs):
             batch_size = target_variable.size(0)
-            loss.eval_batch(step_output.contiguous().view(batch_size, -1), target_variable[:, step + 1])
+            loss.eval_batch(step_output.contiguous().view(batch_size, -1), target_oov_vars[:, step + 1])
         # Backward propagation
         model.zero_grad()
         loss.backward()
@@ -98,12 +102,7 @@ class SupervisedTrainer(object):
             for batch in batch_generator:
                 step += 1
                 step_elapsed += 1
-
-                input_variables, input_lengths = getattr(batch, SRC_FILED_NAME)
-                target_variables = getattr(batch, TGT_FIELD_NAME)
-
-                loss = self._train_batch(input_variables, input_lengths.tolist(), target_variables, model,
-                                         teacher_forcing_ratio)
+                loss = self._train_batch(model=model, batch_input=batch, teacher_forcing_ratio=teacher_forcing_ratio)
 
                 # Record average loss
                 print_loss_total += loss
@@ -189,3 +188,39 @@ class SupervisedTrainer(object):
                             start_epoch, step, dev_data=dev_data,
                             teacher_forcing_ratio=teacher_forcing_ratio)
         return model
+
+
+class SupervisedTrainer2(SupervisedTrainer):
+    def __init__(self, expt_dir='experiment',
+                 loss=NLLLoss(),
+                 batch_size=64,
+                 random_seed=None,
+                 checkpoint_every=1000,
+                 print_every=100):
+        super(SupervisedTrainer2, self).__init__(expt_dir, loss, batch_size, random_seed,
+                                                 checkpoint_every, print_every)
+
+    def _train_batch(self, model, batch_input, teacher_forcing_ratio):
+        # Get field data
+        src_inputs, src_lengths = getattr(batch_input, SRC_FILED_NAME)
+        src_oov_inputs, _ = getattr(batch_input, SRC_OOV_FIELD_NAME)
+        tgt_inputs = getattr(batch_input, TGT_FIELD_NAME)
+        tgt_oov_inputs = getattr(batch_input, TGT_OOV_FIELD_NAME)
+
+        loss = self.loss
+        # Forward propagation
+        decoder_outputs, decoder_hidden, other = model((src_inputs, src_oov_inputs),
+                                                       src_lengths.tolist(), tgt_inputs,
+                                                       teacher_forcing_ratio=teacher_forcing_ratio)
+        # Get loss
+        loss.reset()
+        for step, step_output in enumerate(decoder_outputs):
+            batch_size = tgt_inputs.size(0)
+            loss.eval_batch(step_output.contiguous().view(batch_size, -1), tgt_oov_inputs[:, step + 1])
+        # Backward propagation
+        model.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+
+        return loss.get_loss()
+        pass

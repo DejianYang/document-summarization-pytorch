@@ -133,7 +133,6 @@ class TopKDecoder(torch.nn.Module):
 
         for _ in range(0, max_length):
 
-            # print(_, input_var)
             # Run the RNN one step forward
             input_var = input_var.squeeze(1)
             log_softmax_output, hidden, _ = self.decoder.forward_step(input_var, hidden,

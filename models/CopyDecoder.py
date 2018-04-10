@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 import numpy as np
 import random
-from .attention import Attention, BahdanauAttention
+from .attention import Attention, BahdanauAttention, BahdanauAttention2
 from .baseRNN import BaseRNN
 from .DecoderRNN import DecoderRNN
 
@@ -21,7 +21,7 @@ class CopyDecoder(BaseRNN):
     def __init__(self, vocab_size, oov_size, max_len, hidden_size,
                  sos_id, eos_id,
                  n_layers=1, rnn_cell='gru', bidirectional=False,
-                 input_dropout_p=0, dropout_p=0, use_attention=True):
+                 input_dropout_p=0, dropout_p=0, use_attention=True, use_pointer=True):
 
         assert use_attention is True
         super(CopyDecoder, self).__init__(vocab_size, max_len, hidden_size,
@@ -37,6 +37,7 @@ class CopyDecoder(BaseRNN):
         self.output_size = vocab_size
         self.max_length = max_len
         self.use_attention = use_attention
+        self.use_pointer = use_pointer
         self.eos_id = eos_id
         self.sos_id = sos_id
 
@@ -44,7 +45,7 @@ class CopyDecoder(BaseRNN):
 
         self.embedding = nn.Embedding(self.output_size, self.hidden_size)
 
-        self.attention = BahdanauAttention(self.hidden_size)
+        self.attention = BahdanauAttention2(self.hidden_size)
 
         self.linear_in = nn.Linear(hidden_size * 2, hidden_size, bias=False)
         self.linear_out = nn.Linear(hidden_size * 2, hidden_size, bias=False)
@@ -67,24 +68,25 @@ class CopyDecoder(BaseRNN):
         batch_size = input_oov_idx.size(0)
         seq_length = input_oov_idx.size(1)
 
-        init_copy_logits = Variable(input_oov_idx.data.new(batch_size, self.oov_size).zero_())
-
         gen_logits = self.gen_output_project(torch.cat((h_titled, context), dim=1))
         gen_logits = F.softmax(gen_logits, dim=1)
 
         gen_probs = F.sigmoid(self.gen_prob_project(torch.cat((emb_inp, context, h_titled), dim=1)))
         gen_output_logits = gen_probs * gen_logits
 
+        init_copy_logits = Variable(gen_output_logits.data.new(batch_size, self.oov_size).zero_())
+
         final_logits = torch.cat((gen_output_logits, init_copy_logits), dim=1)
 
         for idx in range(seq_length):
-            batch_idx = input_oov_idx[idx, :]
+            batch_idx = input_oov_idx[:, idx]
             final_logits[:, batch_idx] = final_logits[:, batch_idx] + (1.0 - gen_probs) * attn_dist[:, idx]
 
         log_final_logits = torch.log(final_logits)
+        # print(log_final_logits.size())
         return log_final_logits
 
-    def forward_step(self, input_var, hidden, memory, memory_length):
+    def forward_step(self, input_var, input_oov_idx, coverage, hidden, memory, memory_length):
         embedded = self.embedding(input_var)
         embedded = self.input_dropout(embedded)
 
@@ -93,24 +95,29 @@ class CopyDecoder(BaseRNN):
             rnn_inp = self.linear_in(torch.cat([hidden[0][0], embedded], dim=1))
             _, (h, c) = self.rnn(rnn_inp.unsqueeze(1), hidden)
             h = h.squeeze(0)
-            ctx, attn_dist = self.attention(h, memory, memory_length)
+            ctx, attn_dist = self.attention.forward(query=h,
+                                                    coverage=coverage,
+                                                    memory=memory,
+                                                    memory_length=memory_length)
 
+            coverage = coverage + attn_dist
             h_titled = self.linear_out(torch.cat((ctx, h), dim=1))
 
-            logits = F.log_softmax(self.gen_output_project(h_titled), dim=1)
-            return logits, (h_titled.unsqueeze(0), c), attn_dist
+            logits = self._copy_step(input_oov_idx, embedded, ctx, h_titled, attn_dist)
+            return logits, (h_titled.unsqueeze(0), c), attn_dist, coverage
 
         else:
             rnn_inp = self.linear_in(torch.cat([hidden[0], embedded], dim=1))
             _, h = self.rnn(rnn_inp.unsqueeze(1), hidden)
             h = h.squeeze(0)
-            ctx, attn_dist = self.attention(h, memory, memory_length)
+            ctx, attn_dist = self.attention.forward(h, coverage, memory, memory_length)
+            coverage += attn_dist
             h_titled = self.linear_out(torch.cat((ctx, h), dim=1))
 
             logits = F.log_softmax(self.gen_output_project(h_titled), dim=1)
-            return logits, h_titled.unsqueeze(0), attn_dist
+            return logits, h_titled.unsqueeze(0), attn_dist, coverage
 
-    def forward(self, inputs, encoder_hidden, encoder_outputs, encoder_lengths, teacher_forcing_ratio=1.0):
+    def forward(self, inputs, oov_inputs, encoder_hidden, encoder_outputs, encoder_lengths, teacher_forcing_ratio=1.0):
         input_vars, batch_size, max_length = self._validate_args(inputs,
                                                                  encoder_hidden,
                                                                  encoder_outputs,
@@ -118,6 +125,9 @@ class CopyDecoder(BaseRNN):
 
         # print(input_vars, batch_size, max_length)
         decoder_hidden = self._init_state(encoder_hidden)
+        batch_size, seq_len, enc_dim = encoder_outputs.size()
+
+        coverage = Variable(encoder_outputs.data.new(batch_size, seq_len).zero_())
 
         ret_dict = dict()
         ret_dict[self.KEY_ATTN_SCORE] = []
@@ -131,12 +141,14 @@ class CopyDecoder(BaseRNN):
         for step in range(max_length):
             decoder_input_var = input_vars[:, step]
 
-            # if step > 0 and use_teacher_forcing is False:
-            #     decoder_input_var = sequence_symbols[-1].squeeze(1)
-            decoder_logit, decoder_hidden, step_attn_dist = self.forward_step(input_var=decoder_input_var,
-                                                                              hidden=decoder_hidden,
-                                                                              memory=encoder_outputs,
-                                                                              memory_length=encoder_lengths)
+            decoder_logit, decoder_hidden, step_attn_dist, coverage = \
+                self.forward_step(input_var=decoder_input_var,
+                                  input_oov_idx=oov_inputs,
+                                  hidden=decoder_hidden,
+                                  coverage=coverage,
+                                  memory=encoder_outputs,
+                                  memory_length=encoder_lengths)
+
             decoder_outputs += [decoder_logit]
             ret_dict[self.KEY_ATTN_SCORE] += [step_attn_dist]
             symbols = decoder_logit.topk(1)[1]
