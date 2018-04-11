@@ -31,15 +31,16 @@ class Predictor(object):
             tgt_seq (list): list of tokens in target language as predicted
             by the pre-trained model
         """
-        src_ids, src_oov_ids = self.src_vocab.copy_convert2idx(src_seq)
+        src_ids, src_oov_ids, oov_dict = self.src_vocab.copy_convert2idx(src_seq)
 
         src_id_seq = Variable(torch.LongTensor(src_ids), volatile=True).view(1, -1)
         src_oov_seq = Variable(torch.LongTensor(src_oov_ids), volatile=True).view(1, -1)
 
         if torch.cuda.is_available():
             src_id_seq = src_id_seq.cuda()
+            src_oov_seq = src_oov_seq.cuda()
 
-        softmax_list, _, other = self.model(src_id_seq, [len(src_seq)])
+        softmax_list, _, other = self.model((src_id_seq, src_oov_seq), [len(src_seq)])
         length = other['length'][0]
 
         tgt_id_seq = [other['sequence'][di][0].data[0] for di in range(length)]

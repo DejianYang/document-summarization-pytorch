@@ -33,8 +33,8 @@ with open('./data/toy.txt', 'r', encoding='utf-8') as fr:
 
 with open('./data/toy.tsv', 'w', encoding='utf-8') as fw:
     for src_words, tgt_words in zip(src_sents, tgt_sents):
-        src_ids, src_oov_ids, oov_dict = vocab.copy_covert2dix(src_words)
-        tgt_ids, tgt_oov_ids, _ = vocab.copy_covert2dix(tgt_words, oov_dict)
+        src_ids, src_oov_ids, oov_dict = vocab.copy_convert2idx(src_words)
+        tgt_ids, tgt_oov_ids, _ = vocab.copy_convert2idx(tgt_words, oov_dict)
         s1 = ' '.join([str(i) for i in src_ids])
         s2 = ' '.join([str(i) for i in src_oov_ids])
         s3 = ' '.join([str(i) for i in tgt_ids])

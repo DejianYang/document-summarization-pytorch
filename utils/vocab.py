@@ -207,8 +207,7 @@ class Vocabulary(object):
     #         tgt_oov_ids.append(wi)
     #
     #     return src_ids, src_oov_ids, tgt_ids, tgt_oov_ids
-
-    def copy_covert2dix(self, words, oov_dict=None):
+    def copy_convert2idx(self, words, oov_dict=None):
         ids, oov_ids = [], []
         unk = self.lookup(self._UNK_WORD)
         if oov_dict is None:
@@ -231,6 +230,26 @@ class Vocabulary(object):
                     wi = oov_dict[w]
                 oov_ids.append(wi)
         return ids, oov_ids, oov_dict
+
+    def copy_convert2words(self, idx, oov_dict):
+        oov_id2words = {}
+        for word in oov_dict:
+            oov_id2words[oov_dict[word]] = word
+
+        words = []
+        stop_idx = self.eos_idx
+        for i in idx:
+            if i == stop_idx:
+                break
+            if i < self.vocab_size:
+                w = self.get_word(i)
+            else:
+                w = oov_id2words[i]
+            if w is None:
+                continue
+            words += [w]
+
+        return words
 
 
 def load_vocabulary(vocab_file, vocab_size, max_oov_size):
