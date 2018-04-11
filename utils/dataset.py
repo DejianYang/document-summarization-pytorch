@@ -85,7 +85,8 @@ def _generate_pointer_text(vocab, input_file, saved_file):
 
     with open(saved_file, 'w', encoding='utf-8') as fw:
         for src_words, tgt_words in zip(src_sents, tgt_sents):
-            src_ids, src_oov_ids, tgt_ids, tgt_oov_ids = vocab.copy_convert2idx(src_words, tgt_words)
+            src_ids, src_oov_ids, oov_dict = vocab.copy_covert2dix(src_words)
+            tgt_ids, tgt_oov_ids, _ = vocab.copy_covert2dix(tgt_words, oov_dict)
             s1 = ' '.join([str(i) for i in src_ids])
             s2 = ' '.join([str(i) for i in src_oov_ids])
             s3 = ' '.join([str(i) for i in tgt_ids])
