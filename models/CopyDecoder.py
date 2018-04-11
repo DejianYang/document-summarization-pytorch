@@ -72,17 +72,15 @@ class CopyDecoder(BaseRNN):
         gen_logits = F.softmax(gen_logits, dim=1)
 
         gen_probs = F.sigmoid(self.gen_prob_project(torch.cat((emb_inp, context, h_titled), dim=1)))
-        gen_output_logits = gen_probs * gen_logits
+        gen_logits = gen_probs * gen_logits
 
-        init_copy_logits = Variable(gen_output_logits.data.new(batch_size, self.oov_size).zero_())
+        gen_extend_logits = Variable(gen_logits.data.new(batch_size, self.oov_size).zero_())
+        gen_logits = torch.cat((gen_logits, gen_extend_logits), dim=1)
 
-        final_logits = torch.cat((gen_output_logits, init_copy_logits), dim=1)
+        copy_logits = Variable(gen_logits.data.new(batch_size, self.vocab_size + self.oov_size).zero_())
+        copy_logits = copy_logits.scatter_add(1, input_oov_idx, attn_dist * (1.0 - gen_probs))
 
-        for idx in range(seq_length):
-            batch_idx = input_oov_idx[:, idx]
-            final_logits[:, batch_idx] = final_logits[:, batch_idx] + (1.0 - gen_probs) * attn_dist[:, idx]
-
-        log_final_logits = torch.log(final_logits)
+        log_final_logits = torch.log(gen_logits + copy_logits)
         # print(log_final_logits.size())
         return log_final_logits
 

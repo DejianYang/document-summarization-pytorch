@@ -31,8 +31,11 @@ class Predictor(object):
             tgt_seq (list): list of tokens in target language as predicted
             by the pre-trained model
         """
-        src_id_seq = Variable(torch.LongTensor(self.src_vocab.convert2idx(src_seq)),
-                              volatile=True).view(1, -1)
+        src_ids, src_oov_ids = self.src_vocab.copy_convert2idx(src_seq)
+
+        src_id_seq = Variable(torch.LongTensor(src_ids), volatile=True).view(1, -1)
+        src_oov_seq = Variable(torch.LongTensor(src_oov_ids), volatile=True).view(1, -1)
+
         if torch.cuda.is_available():
             src_id_seq = src_id_seq.cuda()
 
