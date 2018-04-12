@@ -6,6 +6,7 @@ import pyrouge
 import time
 from pyrouge import Rouge155
 import shutil
+import logging
 
 
 def load_chn_vocab(vocab_file):
@@ -65,8 +66,8 @@ def _evaluate_rouge(gold_dir, pred_dir, gold_prefix, pred_prefix):
     r.system_filename_pattern = gold_prefix + '.(\d+).txt'
     r.model_filename_pattern = pred_prefix + '.#ID#.txt'
     output = r.convert_and_evaluate()
-    print('---------------------ROUGE----------------------------')
-    print(output)
+    logging.info('---------------------ROUGE----------------------------')
+    logging.info(output)
     output_dict = r.output_to_dict(output)
     return output_dict
 
@@ -116,7 +117,7 @@ def evaluate_rouge(cand_file, ref_file):
         r.system_filename_pattern = 'cand.(\d+).txt'
         rouge_results = r.convert_and_evaluate()
 
-        print(rouge_results)
+        logging.info(rouge_results)
         return r.output_to_dict(rouge_results)
 
     finally:

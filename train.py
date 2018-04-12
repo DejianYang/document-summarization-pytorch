@@ -64,7 +64,7 @@ def train(args):
                              rnn_cell=config['rnn_cell'],
                              variable_lengths=True)
         decoder = CopyDecoder(len(vocab), vocab.oov_size,
-                              config['tgt_max_len'], hidden_size * 2,
+                              config['tgt_max_len'], hidden_size,
                               dropout_p=config['dropout_prob'], use_attention=True,
                               bidirectional=bidirectional,
                               rnn_cell=config['rnn_cell'],

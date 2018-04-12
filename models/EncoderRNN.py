@@ -41,8 +41,10 @@ class EncoderRNN(BaseRNN):
                                          input_dropout_p, dropout_p, n_layers, rnn_cell)
 
         self.variable_lengths = variable_lengths
-        self.embedding = nn.Embedding(vocab_size, hidden_size)
-        self.rnn = self.rnn_cell(hidden_size, hidden_size, n_layers,
+        emb_size = hidden_size
+        self.embedding = nn.Embedding(vocab_size, emb_size)
+        hidden_size = hidden_size // 2 if bidirectional else hidden_size
+        self.rnn = self.rnn_cell(emb_size, hidden_size, n_layers,
                                  batch_first=True, bidirectional=bidirectional, dropout=dropout_p)
 
     def forward(self, input_var, input_lengths=None):

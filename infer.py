@@ -8,14 +8,23 @@ from utils.dataset import load_dataset_from_file
 from utils.checkpoint import *
 from models import Perplexity, Optimizer, EncoderRNN, CopyDecoder, TopKDecoder, Seq2Seq
 from trainer import SupervisedTrainer2, Evaluator, Predictor
+from utils.evaluate import evaluate_rouge
 
 LOG_FORMAT = '%(asctime)s %(levelname)s %(message)s'
-logging.basicConfig(format=LOG_FORMAT, level=logging.INFO)
 
 
 def infer(args):
     config_path = os.path.join(args.output, 'config.json')
     config = json.load(open(config_path, 'r', encoding='utf-8'))
+
+    log_file = os.path.join(config['log_dir'], 'result.txt')
+    logging.basicConfig(format=LOG_FORMAT, level=logging.INFO, filename=log_file)
+    console = logging.StreamHandler()
+    console.setLevel(logging.INFO)
+    formatter = logging.Formatter(LOG_FORMAT)
+    console.setFormatter(formatter)
+    logging.getLogger('').addHandler(console)
+
     assert args.load_checkpoint is not None
     logging.info("loading checkpoint from {}".format(
         os.path.join(config['log_dir'], Checkpoint.CHECKPOINT_DIR_NAME, args.load_checkpoint)))
@@ -41,14 +50,27 @@ def infer(args):
 
     if torch.cuda.is_available():
         loss.cuda()
-    # evaluator = Evaluator(loss=loss, batch_size=config['batch_size'])
+    evaluator = Evaluator(loss=loss, batch_size=config['batch_size'])
 
-    # dev_loss, accuracy = evaluator.evaluate(seq2seq, valid_set)
-    # logging.info("Dev Loss: %f; Dev Accuracy: %f" % (dev_loss, accuracy))
+    dev_loss, accuracy = evaluator.evaluate(seq2seq, valid_set)
+    logging.info("Dev Loss: %f; Dev Accuracy: %f" % (dev_loss, accuracy))
 
     beam_search = Seq2Seq(seq2seq.encoder, TopKDecoder(seq2seq.decoder, config['beam_size']))
     predictor = Predictor(beam_search, input_vocab, output_vocab)
-    predictor.predict_file('./data/valid.art', config['log_dir'] + '/valid.pred.{}.sum'.format(args.load_checkpoint))
+    pred_path = config['log_dir'] + '/valid.pred.{}.sum'.format(args.load_checkpoint)
+    predictor.predict_file('./data/valid.art', pred_path)
+
+    logging.info('predict file: {}'.format(pred_path))
+    results_dict = evaluate_rouge("./data/valid.sum", pred_path)
+    print(results_dict)
+    logging.info(">> ROUGE(1/2/3/4/L/SU4/W1.2): {:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}".format(
+        results_dict["rouge_1_f_score"] * 100,
+        results_dict["rouge_2_f_score"] * 100,
+        results_dict["rouge_3_f_score"] * 100,
+        results_dict["rouge_4_f_score"] * 100,
+        results_dict["rouge_l_f_score"] * 100,
+        results_dict["rouge_su*_f_score"] * 100,
+        results_dict["rouge_w_1.2_f_score"] * 100))
 
 
 def parse_args():
