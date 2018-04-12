@@ -62,7 +62,6 @@ def infer(args):
 
     logging.info('predict file: {}'.format(pred_path))
     results_dict = evaluate_rouge("./data/valid.sum", pred_path)
-    print(results_dict)
     logging.info(">> ROUGE(1/2/3/4/L/SU4/W1.2): {:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}".format(
         results_dict["rouge_1_f_score"] * 100,
         results_dict["rouge_2_f_score"] * 100,

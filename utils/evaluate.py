@@ -59,17 +59,17 @@ def prepare_data_for_rouge(file, saved_dir, prefix, vocab):
     pass
 
 
-def _evaluate_rouge(gold_dir, pred_dir, gold_prefix, pred_prefix):
-    r = Rouge155()
-    r.system_dir = gold_dir
-    r.model_dir = pred_dir
-    r.system_filename_pattern = gold_prefix + '.(\d+).txt'
-    r.model_filename_pattern = pred_prefix + '.#ID#.txt'
-    output = r.convert_and_evaluate()
-    logging.info('---------------------ROUGE----------------------------')
-    logging.info(output)
-    output_dict = r.output_to_dict(output)
-    return output_dict
+# def _evaluate_rouge(gold_dir, pred_dir, gold_prefix, pred_prefix):
+#     r = Rouge155()
+#     r.system_dir = gold_dir
+#     r.model_dir = pred_dir
+#     r.system_filename_pattern = gold_prefix + '.(\d+).txt'
+#     r.model_filename_pattern = pred_prefix + '.#ID#.txt'
+#     output = r.convert_and_evaluate()
+#     logging.info('---------------------ROUGE----------------------------')
+#     logging.info(output)
+#     output_dict = r.output_to_dict(output)
+#     return output_dict
 
 
 # def evaluate_rouge(vocab_file, gold_file, pred_file, gold_rouge_dir, gold_rouge_prefix,
@@ -117,7 +117,7 @@ def evaluate_rouge(cand_file, ref_file):
         r.system_filename_pattern = 'cand.(\d+).txt'
         rouge_results = r.convert_and_evaluate()
 
-        logging.info(rouge_results)
+        print(rouge_results)
         return r.output_to_dict(rouge_results)
 
     finally:
@@ -138,17 +138,19 @@ if __name__ == '__main__':
     #                pred_rouge_dir="../data/pred2/", pred_rouge_prefix="valid.pred",
     #                rouge_result_saved_path="../data/rouge.valid.pred3.json")
     parser = argparse.ArgumentParser()
-    parser.add_argument('-c', type=str, default="candidate.txt",
+    parser.add_argument('--c', type=str, default="candidate.txt",
                         help='candidate file')
-    parser.add_argument('-r', type=str, default="reference.txt",
+    parser.add_argument('--r', type=str, default="reference.txt",
                         help='reference file')
     args = parser.parse_args()
     results_dict = evaluate_rouge(args.c, args.r)
-    print(">> ROUGE(1/2/3/L/SU4): {:.2f}/{:.2f}/{:.2f}/{:.2f}/{:.2f}".format(
+    print(">> ROUGE(1/2/3/4/L/SU4/W1.2): {:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}".format(
         results_dict["rouge_1_f_score"] * 100,
         results_dict["rouge_2_f_score"] * 100,
         results_dict["rouge_3_f_score"] * 100,
+        results_dict["rouge_4_f_score"] * 100,
         results_dict["rouge_l_f_score"] * 100,
-        results_dict["rouge_su*_f_score"] * 100))
+        results_dict["rouge_su*_f_score"] * 100,
+        results_dict["rouge_w_1.2_f_score"] * 100))
 
     pass
