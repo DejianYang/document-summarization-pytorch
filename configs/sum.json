@@ -1,8 +1,8 @@
 {
-  "train_path": "./data/valid.tsv",
+  "train_path": "./data/train.tsv",
   "valid_path": "./data/valid.tsv",
   "vocab_path": "./data/vocab.txt",
-  "log_dir": "./data/sum_v0411V2",
+  "log_dir": "./data/sum_v0412V1",
 
   "vocab_size": 50000,
   "max_oov_size": 500,
@@ -17,7 +17,7 @@
   "beam_size":5,
   "max_grad_norm": 3.0,
 
-  "batch_size":32,
+  "batch_size":16,
   "teacher_forcing_ratio":0.5,
   "num_epochs":5,
   "display_every":100,
