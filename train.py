@@ -62,6 +62,7 @@ def train(args):
         encoder = EncoderRNN(len(vocab), config['src_max_len'], hidden_size,
                              bidirectional=bidirectional,
                              rnn_cell=config['rnn_cell'],
+                             dropout_p=config['dropout_prob'],
                              variable_lengths=True)
         decoder = CopyDecoder(len(vocab), vocab.oov_size,
                               config['tgt_max_len'], hidden_size,
@@ -79,7 +80,7 @@ def train(args):
             param.data.uniform_(-config['init_w'], config['init_w'])
 
         optimizer = Optimizer(torch.optim.Adam(seq2seq.parameters()), max_grad_norm=config['max_grad_norm'])
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer.optimizer, 1000, 0.9)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer.optimizer, 1000, 0.8)
         optimizer.set_scheduler(scheduler)
 
     # train

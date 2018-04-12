@@ -2,19 +2,19 @@
   "train_path": "./data/train.tsv",
   "valid_path": "./data/valid.tsv",
   "vocab_path": "./data/vocab.txt",
-  "log_dir": "./data/sum_v0412V2",
+  "log_dir": "./data/sum_v0412V4",
 
-  "vocab_size": 30000,
+  "vocab_size": 20000,
   "max_oov_size": 1000,
   "src_max_len": 2000,
   "tgt_max_len": 50,
 
   "bidirectional":true,
-  "dropout_prob": 0.3,
+  "dropout_prob": 0.2,
   "rnn_cell":"lstm",
   "hidden_size":256,
   "init_w":0.08,
-  "beam_size":5,
+  "beam_size":10,
   "max_grad_norm": 3.0,
 
   "batch_size":32,
