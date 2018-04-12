@@ -45,7 +45,7 @@ class Seq2Seq(nn.Module):
         self.decoder.rnn.flatten_parameters()
 
     def forward(self, input_variable, input_lengths=None, target_variable=None,
-                teacher_forcing_ratio=0):
+                teacher_forcing_ratio=1.0):
         if isinstance(input_variable, tuple):
             var_inputs, oov_inputs = input_variable
 

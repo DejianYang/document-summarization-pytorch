@@ -1,5 +1,6 @@
 import torch
 from torch.autograd import Variable
+import logging
 
 
 class Predictor(object):
@@ -44,16 +45,16 @@ class Predictor(object):
         length = other['length'][0]
 
         tgt_id_seq = [other['sequence'][di][0].data[0] for di in range(length)]
-        tgt_seq = self.tgt_vocab.convert2words(tgt_id_seq)
+        tgt_seq = self.tgt_vocab.copy_convert2words(tgt_id_seq, oov_dict)
         return tgt_seq
 
     def predict_file(self, src_input_file, tgt_output_file):
-        print('predict the file from %s' % src_input_file)
+        logging.info('predict the file from %s' % src_input_file)
         src_lines = [line.strip().split() for line in open(src_input_file, 'r', encoding='utf-8')]
         with open(tgt_output_file, 'w', encoding='utf-8') as fw:
             for i, src_inp_seq in enumerate(src_lines):
                 tgt_pred_seq = self.predict(src_inp_seq)
-                fw.write(' '.join(tgt_pred_seq)+'\n')
-                if (i+1) % 100 == 0:
-                    print('...predict %d lines' % (i+1))
-        print('predict over!')
+                fw.write(' '.join(tgt_pred_seq) + '\n')
+                if (i + 1) % 100 == 0:
+                    logging.info('...predict %d lines' % (i + 1))
+        logging.info('predict over!')

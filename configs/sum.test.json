@@ -2,11 +2,11 @@
   "train_path": "./data/valid.tsv",
   "valid_path": "./data/valid.tsv",
   "vocab_path": "./data/vocab.txt",
-  "log_dir": "./data/sum_v0402",
+  "log_dir": "./data/sum_test",
 
   "vocab_size": 5000,
   "max_oov_size": 200,
-  "src_max_len": 1000,
+  "src_max_len": 500,
   "tgt_max_len": 50,
 
   "bidirectional":true,

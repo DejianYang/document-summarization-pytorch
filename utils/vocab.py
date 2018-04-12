@@ -182,41 +182,16 @@ class Vocabulary(object):
 
         return words
 
-    # def copy_convert2idx(self, src_words, tgt_words):
-    #     oov_dict = {}
-    #     src_ids, tgt_ids = [], []
-    #     src_oov_ids, tgt_oov_ids = [], []
-    #
-    #     unk = self.lookup(self._UNK_WORD)
-    #     for w in src_words:
-    #         wi = self.lookup(w, unk)
-    #         src_ids.append(wi)
-    #
-    #         if wi == unk and self.oov_size is not None and len(oov_dict) < self.oov_size:
-    #             oov_dict[w] = len(oov_dict) + self.vocab_size
-    #
-    #         if wi == unk and w in oov_dict:
-    #             wi = oov_dict[w]
-    #         src_oov_ids.append(wi)
-    #
-    #     for w in tgt_words:
-    #         wi = self.lookup(w, unk)
-    #         tgt_ids.append(wi)
-    #         if wi == unk and w in oov_dict:
-    #             wi = oov_dict[w]
-    #         tgt_oov_ids.append(wi)
-    #
-    #     return src_ids, src_oov_ids, tgt_ids, tgt_oov_ids
     def copy_convert2idx(self, words, oov_dict=None):
         ids, oov_ids = [], []
         unk = self.lookup(self._UNK_WORD)
         if oov_dict is None:
-            oov_dict = {}
+            oov_dict = collections.OrderedDict()
             for w in words:
                 wi = self.lookup(w, unk)
                 ids.append(wi)
 
-                if wi == unk and self.oov_size is not None and len(oov_dict) < self.oov_size:
+                if wi == unk and w not in oov_dict and len(oov_dict) < self.oov_size:
                     oov_dict[w] = len(oov_dict) + self.vocab_size
 
                 if wi == unk and w in oov_dict:

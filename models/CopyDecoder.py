@@ -34,7 +34,7 @@ class CopyDecoder(BaseRNN):
         self.bidirectional_encoder = bidirectional
         self.rnn = self.rnn_cell(hidden_size, hidden_size, n_layers, batch_first=True, dropout=dropout_p)
 
-        self.output_size = vocab_size
+        self.output_size = vocab_size + self.oov_size
         self.max_length = max_len
         self.use_attention = use_attention
         self.use_pointer = use_pointer
@@ -43,7 +43,7 @@ class CopyDecoder(BaseRNN):
 
         self.init_input = None
 
-        self.embedding = nn.Embedding(self.output_size, self.hidden_size)
+        self.embedding = nn.Embedding(self.vocab_size, self.hidden_size)
 
         self.attention = BahdanauAttention2(self.hidden_size)
 

@@ -82,9 +82,11 @@ class TopKDecoder(torch.nn.Module):
         self.SOS = self.decoder.sos_id
         self.EOS = self.decoder.eos_id
 
-    def forward(self, inputs=None, encoder_hidden=None, encoder_outputs=None, encoder_lengths=None,
-                teacher_forcing_ratio=0, retain_output_probs=True):
+    def forward(self, inputs=None, oov_inputs=None, encoder_hidden=None, encoder_outputs=None, encoder_lengths=None,
+                teacher_forcing_ratio=1.0, retain_output_probs=True):
         """
+         inputs, oov_inputs, encoder_hidden, encoder_outputs, encoder_lengths, teacher_forcing_ratio=1.0
+
         Forward rnn for MAX_LENGTH steps.  Look at :func:`seq2seq.models.DecoderRNN.DecoderRNN.forward_rnn` for details.
         """
 
@@ -95,6 +97,7 @@ class TopKDecoder(torch.nn.Module):
 
         # Inflate the initial hidden states to be of size: b*k x h
         encoder_hidden = self.decoder._init_state(encoder_hidden)
+
         if encoder_hidden is None:
             hidden = None
         else:
@@ -103,11 +106,24 @@ class TopKDecoder(torch.nn.Module):
             else:
                 hidden = _inflate(encoder_hidden, self.k, 1)
 
+        # Inflate the initial coverage vector to be of size: b*k x h
+        if self.decoder.use_pointer:
+            batch_size, seq_len, enc_dim = encoder_outputs.size()
+            coverage = Variable(encoder_outputs.data.new(batch_size, seq_len).zero_())
+            coverage = _inflate(coverage, self.k, 0)
+            oov_inputs = _inflate(oov_inputs, self.k, 0)
+
+        else:
+            coverage = None
+            oov_inputs = None
+
         # ... same idea for encoder_outputs and decoder_outputs
         if self.decoder.use_attention:
-            inflated_encoder_outputs = _inflate(encoder_outputs, self.k, 0)
+            encoder_outputs = _inflate(encoder_outputs, self.k, 0)
+            encoder_lengths = encoder_lengths * self.k
         else:
-            inflated_encoder_outputs = None
+            encoder_outputs = None
+            encoder_lengths = None
 
         # Initialize the scores; for the first step,
         # ignore the inflated copies to avoid duplicate entries in the top k
@@ -131,13 +147,29 @@ class TopKDecoder(torch.nn.Module):
         stored_emitted_symbols = list()
         stored_hidden = list()
 
+        # print(input_var)
+        # print(oov_inputs)
+        # print(coverage)
+        # print(encoder_outputs)
+        # print(encoder_lengths)
         for _ in range(0, max_length):
 
             # Run the RNN one step forward
-            input_var = input_var.squeeze(1)
-            log_softmax_output, hidden, _ = self.decoder.forward_step(input_var, hidden,
-                                                                      inflated_encoder_outputs,
-                                                                      encoder_lengths)
+            unk_mask = input_var.ge(self.decoder.vocab_size)
+            unk_input_var = input_var.masked_fill(unk_mask, 1)
+            unk_input_var = unk_input_var.squeeze(1)
+
+            log_softmax_output, hidden, step_attn_dist, coverage = \
+                self.decoder.forward_step(input_var=unk_input_var,
+                                          input_oov_idx=oov_inputs,
+                                          hidden=hidden,
+                                          coverage=coverage,
+                                          memory=encoder_outputs,
+                                          memory_length=encoder_lengths)
+
+            # log_softmax_output, hidden, _ = self.decoder.forward_step(input_var, hidden,
+            #                                                           inflated_encoder_outputs,
+            #                                                           encoder_lengths)
 
             # If doing local backprop (e.g. supervised training), retain the output layer
             if retain_output_probs:

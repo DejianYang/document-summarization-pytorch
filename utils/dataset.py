@@ -87,6 +87,7 @@ def _generate_pointer_text(vocab, input_file, saved_file):
         for src_words, tgt_words in zip(src_sents, tgt_sents):
             src_ids, src_oov_ids, oov_dict = vocab.copy_convert2idx(src_words)
             tgt_ids, tgt_oov_ids, _ = vocab.copy_convert2idx(tgt_words, oov_dict)
+
             s1 = ' '.join([str(i) for i in src_ids])
             s2 = ' '.join([str(i) for i in src_oov_ids])
             s3 = ' '.join([str(i) for i in tgt_ids])
@@ -110,8 +111,19 @@ def load_dataset(train_path, valid_path, vocab_path,
     logging.info('generating pointer text data from %s to %s ' % (valid_path, valid_index_path))
     _generate_pointer_text(vocab, valid_path, valid_index_path)
 
-    train_set = PointerTextDataset(vocab=vocab, csv_path=train_index_path, src_max_len=src_max_len, tgt_max_len=tgt_max_len)
-    valid_set = PointerTextDataset(vocab=vocab, csv_path=valid_index_path, src_max_len=src_max_len, tgt_max_len=tgt_max_len)
+    train_set = PointerTextDataset(vocab=vocab, csv_path=train_index_path,
+                                   src_max_len=src_max_len, tgt_max_len=tgt_max_len)
+    valid_set = PointerTextDataset(vocab=vocab, csv_path=valid_index_path,
+                                   src_max_len=src_max_len, tgt_max_len=tgt_max_len)
 
     return train_set, valid_set, vocab
+
+
+def load_dataset_from_file(data_path, vocab, src_max_len, tgt_max_len):
+    data_index_path = data_path.replace(".tsv", ".idx.tsv")
+
+    logging.info('generating pointer text data from %s to %s ' % (data_path, data_index_path))
+    _generate_pointer_text(vocab, data_path, data_index_path)
+    return PointerTextDataset(vocab=vocab, csv_path=data_index_path, src_max_len=src_max_len, tgt_max_len=tgt_max_len)
+    pass
 

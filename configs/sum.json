@@ -2,7 +2,7 @@
   "train_path": "./data/valid.tsv",
   "valid_path": "./data/valid.tsv",
   "vocab_path": "./data/vocab.txt",
-  "log_dir": "./data/sum_v0402",
+  "log_dir": "./data/sum_v0411V2",
 
   "vocab_size": 50000,
   "max_oov_size": 500,
@@ -21,5 +21,5 @@
   "teacher_forcing_ratio":0.5,
   "num_epochs":5,
   "display_every":100,
-  "checkpoint_every":1000
+  "checkpoint_every":5000
 }

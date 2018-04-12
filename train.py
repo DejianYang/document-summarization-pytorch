@@ -7,17 +7,31 @@ from models import Perplexity, Optimizer, EncoderRNN, CopyDecoder, TopKDecoder, 
 from utils.dataset import *
 from trainer import SupervisedTrainer2, Evaluator, Predictor
 
+
 LOG_FORMAT = '%(asctime)s %(levelname)s %(message)s'
-logging.basicConfig(format=LOG_FORMAT, level=logging.INFO)
 
 
 def load_config(path):
-    return json.load(open(path, 'r', encoding='utf-8'))
+    config = json.load(open(path, 'r', encoding='utf-8'))
+    if not os.path.exists(config['log_dir']):
+        os.mkdir(config['log_dir'])
+    log_file = os.path.join(config['log_dir'], 'log.txt')
+    logging.basicConfig(format=LOG_FORMAT, level=logging.INFO, filename=log_file, filemode='w')
+    console = logging.StreamHandler()
+    console.setLevel(logging.INFO)
+    formatter = logging.Formatter(LOG_FORMAT)
+    console.setFormatter(formatter)
+    logging.getLogger('').addHandler(console)
+
+    config_saved_path = os.path.join(config['log_dir'], 'config.json')
+    logging.info('save current config into {}'.format(config_saved_path))
+    json.dump(config, open(config_saved_path, 'w', encoding='utf-8'))
+
+    return config
 
 
 def train(args):
     config = load_config(args.config)
-    logging.info(config)
 
     train_set, valid_set, vocab = load_dataset(train_path=config['train_path'],
                                                valid_path=config['valid_path'],
@@ -78,7 +92,7 @@ def train(args):
                             teacher_forcing_ratio=config['teacher_forcing_ratio'],
                             resume=args.resume)
 
-    evaluator = Evaluator(loss=loss, batch_size=32)
+    evaluator = Evaluator(loss=loss, batch_size=config['batch_size'])
     dev_loss, accuracy = evaluator.evaluate(seq2seq, valid_set)
     logging.info("Dev Loss: %f; Dev Accuracy: %f" % (dev_loss, accuracy))
 
