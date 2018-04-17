@@ -119,45 +119,65 @@ class BahdanauAttention2(nn.Module):
     """
     Bahdanau Attention with Coverage
     """
-    def __init__(self, dim):
+    def __init__(self, input_size, hidden_size, use_coverage=False):
+        """
+         Note attention size is equal to hidden size by default
+        :param input_size(int): query input size
+        :param hidden_size(int): rnn and attention hidden size(memory hidden size)
+        :param use_coverage(bool, optional): use coverage
+        """
         super(BahdanauAttention2, self).__init__()
-        self.dim = dim
+        self.use_coverage = use_coverage
+        self.input_size = input_size
+        self.attn_size = hidden_size
 
-        self.linear_wh = nn.Linear(dim, dim, bias=False)
-        self.linear_wm = nn.Linear(dim, dim, bias=False)
-        self.linear_wc = nn.Linear(1, dim, bias=False)
-        self.v = nn.Linear(dim, 1, bias=False)
+        self.linear_wh = nn.Linear(input_size, self.attn_size)
+        self.linear_wm = nn.Linear(hidden_size, self.attn_size, bias=False)
+        if self.use_coverage:
+            self.linear_wc = nn.Linear(1, self.attn_size, bias=False)
+        self.v = nn.Linear(self.attn_size, 1, bias=False)
 
-    def forward(self, query, memory, coverage, memory_length=None):
+    def forward(self, query, memory, coverage=None, memory_length=None):
         """
          Bahdanau Attention with coverage
-        :param query: target sequence hidden states, [batch_size, tgt_length, dim]
-        :param memory: source sequence hidden states, [batch_size, src_length, dim]
-        :param coverage: coverage vector of attention, [batch_size, dim]
-        :param memory_length: source sequence lengths, [batch]
-        :return: context vector and attention distributions
+        :param query: target sequence hidden states, [batch_size, input_size]
+        :param memory: source sequence hidden states, [batch_size, src_length, hidden_size]
+        :param coverage: coverage vector of attention, [batch_size, src_length]
+        :param memory_length: source sequence lengths to calculate the attention mask, [batch]
+        :return: context vector and attention distributions, new attention coverage vector
         """
         assert query.dim() == 2
         assert memory.dim() == 3
-        assert coverage.dim() == 2
-        assert coverage is not None
         tgt_batch, tgt_dim = query.size()
         src_batch, src_len, src_dim = memory.size()
-
         assert tgt_batch == src_batch
-        assert tgt_dim == src_dim
 
-        wh = self.linear_wh(query).unsqueeze(1).expand(src_batch, src_len, src_dim)
-        wm = self.linear_wm(memory.contiguous().view(-1, src_dim)).view(src_batch, src_len, src_dim)
-        wc = self.linear_wc(coverage.contiguous().view(-1, 1)).view(src_batch, src_len, src_dim)
+        if self.use_coverage:
+            assert coverage is not None, "coverage can not be none when use coverage"
+            assert coverage.dim() == 2
+            assert coverage.size() == (src_batch, src_len)
 
-        attn = self.v(F.tanh(wh+wm+wc).view(-1, src_dim)).view(src_batch, src_len)
+        wh = self.linear_wh(query).unsqueeze(1).expand(src_batch, src_len, self.attn_size)
+        wm = self.linear_wm(memory.contiguous().view(-1, src_dim)).view(src_batch, src_len, self.attn_size)
+
+        if self.use_coverage:
+            wc = self.linear_wc(coverage.contiguous().view(-1, 1)).view(src_batch, src_len, self.attn_size)
+            attn_dist = self.v(F.tanh(wh+wm+wc).view(-1, src_dim)).view(src_batch, src_len)
+        else:
+            attn_dist = self.v(F.tanh(wh + wm).view(-1, src_dim)).view(src_batch, src_len)
 
         # apply mask
         if memory_length is not None:
             mask = _sequence_mask(memory_length, src_len)
-            attn.data.masked_fill_(mask, -float('inf'))
+            attn_dist.data.masked_fill_(mask, -float('inf'))
         # attention distributions
-        attn = F.softmax(attn, dim=1)
-        context = torch.bmm(attn.unsqueeze(1), memory).squeeze(1)
-        return context, attn
+        attn_dist = F.softmax(attn_dist, dim=1)
+        #print("src_len", src_len, "lengths", memory_length)
+        #print("attn_dist", attn_dist)
+        context = torch.bmm(attn_dist.unsqueeze(1), memory).squeeze(1)
+
+        if coverage is not None:
+            coverage = coverage + attn_dist
+            return context, attn_dist, coverage
+
+        return context, attn_dist

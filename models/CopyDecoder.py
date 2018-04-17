@@ -45,7 +45,7 @@ class CopyDecoder(BaseRNN):
 
         self.embedding = nn.Embedding(self.vocab_size, self.hidden_size)
 
-        self.attention = BahdanauAttention2(self.hidden_size)
+        self.attention = BahdanauAttention2(self.hidden_size * 2, self.hidden_size, use_coverage=True)
 
         self.linear_in = nn.Linear(hidden_size * 2, hidden_size, bias=False)
         self.linear_out = nn.Linear(hidden_size * 2, hidden_size, bias=False)
@@ -90,19 +90,17 @@ class CopyDecoder(BaseRNN):
 
         # lstm cell
         if isinstance(hidden, tuple):
-            rnn_inp = self.linear_in(torch.cat([hidden[0][0], embedded], dim=1))
-            _, (h, c) = self.rnn(rnn_inp.unsqueeze(1), hidden)
-            h = h.squeeze(0)
-            ctx, attn_dist = self.attention.forward(query=h,
-                                                    coverage=coverage,
-                                                    memory=memory,
-                                                    memory_length=memory_length)
+            h, c = hidden
+            ctx, attn_dist, coverage = self.attention.forward(query=torch.cat((h.squeeze(0), c.squeeze(0)), dim=1),
+                                                              coverage=coverage,
+                                                              memory=memory,
+                                                              memory_length=memory_length)
 
-            coverage = coverage + attn_dist
-            h_titled = self.linear_out(torch.cat((ctx, h), dim=1))
+            rnn_inp = self.linear_in(torch.cat([ctx, embedded], dim=1))
+            _, hidden = self.rnn(rnn_inp.unsqueeze(1), hidden)
 
-            logits = self._copy_step(input_oov_idx, embedded, ctx, h_titled, attn_dist)
-            return logits, (h_titled.unsqueeze(0), c), attn_dist, coverage
+            logits = self._copy_step(input_oov_idx, embedded, ctx, hidden[0].squeeze(0), attn_dist)
+            return logits, hidden, attn_dist, coverage
 
         else:
             rnn_inp = self.linear_in(torch.cat([hidden[0], embedded], dim=1))
